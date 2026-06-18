@@ -15,9 +15,14 @@ class OpenRouterEngine:
 
     BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-    def __init__(self, model: str = "z-ai/glm-5.2", api_key: str | None = None):
-        self.model = model
-        self.api_key = api_key or get_settings().openrouter_api_key
+    def __init__(
+        self,
+        model: str | None = None,
+        api_key: str | None = None,
+    ):
+        settings = get_settings()
+        self.model = model or settings.openrouter_model
+        self.api_key = api_key or settings.openrouter_api_key
         if not self.api_key:
             raise RuntimeError(
                 "OpenRouter API key is required. Pass api_key=... or set OPENROUTER_API_KEY."
