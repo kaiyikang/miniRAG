@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_model_cache_dir: str = str(_PROJECT_ROOT / "temp")
 
+    vector_store_path: str = str(_PROJECT_ROOT / "store")
+    collection_name: str = "defualt_collection"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
