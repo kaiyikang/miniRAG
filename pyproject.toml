@@ -5,7 +5,7 @@ description = "A simple, modular RAG system to help you understand the core conc
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "python-dotenv>=1.2.2",
+    "pydantic-settings>=2.14.1",
     "requests>=2.32",
 ]
 

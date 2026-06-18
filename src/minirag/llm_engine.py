@@ -1,11 +1,9 @@
 import json
-import os
 from typing import Any
 
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
+from minirag.config import get_settings
 
 
 class InferenceError(Exception):
@@ -19,7 +17,7 @@ class OpenRouterEngine:
 
     def __init__(self, model: str = "z-ai/glm-5.2", api_key: str | None = None):
         self.model = model
-        self.api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
+        self.api_key = api_key or get_settings().openrouter_api_key
         if not self.api_key:
             raise RuntimeError(
                 "OpenRouter API key is required. Pass api_key=... or set OPENROUTER_API_KEY."
