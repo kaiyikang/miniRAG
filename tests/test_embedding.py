@@ -2,6 +2,7 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 
+from minirag.config import Settings
 from minirag.embedding import (
     EmbeddingError,
     OpenRouterEmbeddingEngine,
@@ -43,10 +44,11 @@ class TestSentenceTransformerEngine(unittest.TestCase):
 
 
 class TestOpenRouterEmbeddingEngine(unittest.TestCase):
-    def test_init_missing_api_key_raises(self):
-        with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(RuntimeError) as ctx:
-                OpenRouterEmbeddingEngine(api_key=None)
+    @patch("minirag.embedding.get_settings")
+    def test_init_missing_api_key_raises(self, mock_get_settings):
+        mock_get_settings.return_value = Settings(openrouter_api_key=None)
+        with self.assertRaises(RuntimeError) as ctx:
+            OpenRouterEmbeddingEngine(api_key=None)
         self.assertIn("OpenRouter API key is required", str(ctx.exception))
 
     @patch("minirag.embedding.requests.post")

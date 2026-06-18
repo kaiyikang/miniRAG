@@ -1,8 +1,8 @@
-import json
 import os
 import unittest
 from unittest.mock import MagicMock, patch
 
+from minirag.config import Settings
 from minirag.llm_engine import InferenceError, OpenRouterEngine
 
 
@@ -17,10 +17,11 @@ class TestOpenRouterEngine(unittest.TestCase):
             engine = OpenRouterEngine()
         self.assertEqual(engine.api_key, "env-key")
 
-    def test_init_missing_api_key_raises(self):
-        with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(RuntimeError) as ctx:
-                OpenRouterEngine()
+    @patch("minirag.llm_engine.get_settings")
+    def test_init_missing_api_key_raises(self, mock_get_settings):
+        mock_get_settings.return_value = Settings(openrouter_api_key=None)
+        with self.assertRaises(RuntimeError) as ctx:
+            OpenRouterEngine()
         self.assertIn("OpenRouter API key is required", str(ctx.exception))
 
     def test_prepare_messages_string_input(self):
@@ -75,7 +76,7 @@ class TestOpenRouterEngine(unittest.TestCase):
         mock_post.assert_called_once()
         _, kwargs = mock_post.call_args
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer k")
-        payload = json.loads(kwargs["data"])
+        payload = kwargs["json"]
         self.assertEqual(payload["model"], "m")
         self.assertEqual(payload["messages"], [{"role": "user", "content": "hello"}])
         self.assertTrue(payload["reasoning"]["enabled"])

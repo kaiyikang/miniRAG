@@ -7,33 +7,34 @@ from hashlib import sha256
 
 
 class Chunk(NamedTuple):
-    text: str
+    document: str
     embedding: list[float]
     metadata: dict[str, Any]
 
 
 class SearchResult(NamedTuple):
-    id: str
-    text: str
+    chunk_id: str
+    document: str
     metadata: dict[str, Any]
     score: float  # 1 - distance
 
 
 class VectorStore(ABC):
+    """Abstract base class for vector stores."""
 
     @abstractmethod
     def __init__(self, vector_store_path: str, collection_name: str):
-        """"""
+        """Initialize the vector store."""
 
     @abstractmethod
     def add_chunks(self, chunks: list[Chunk]) -> list[str]:
-        """{TODO}"""
+        """Add chunks to the vector store."""
 
     @abstractmethod
     def search(
-        self, query_embedding: list[float], top_k: int = 5
+        self, query_embedding: list[float], top_k: int = 10
     ) -> list[SearchResult]:
-        """{TODO}"""
+        """Search for the top-k chunks most similar to the query embedding."""
 
 
 class ChromaVectorStore(VectorStore):
@@ -59,13 +60,41 @@ class ChromaVectorStore(VectorStore):
         if not chunks:
             return []
 
-        ids = [sha256(chunk.text.encode()).hexdigest() for chunk in chunks]
+        ids = [sha256(chunk.document.encode()).hexdigest() for chunk in chunks]
 
         self._collection.add(
             ids=ids,
-            documents=[chunk.text for chunk in chunks],
+            documents=[chunk.document for chunk in chunks],
             metadatas=[chunk.metadata for chunk in chunks],
             embeddings=[chunk.embedding for chunk in chunks],
         )
 
         return ids
+
+    def search(
+        self,
+        query_embedding: list[float],
+        top_k: int = 10,
+    ) -> list[SearchResult]:
+        if not query_embedding:
+            return []
+        results = self._collection.query(
+            query_embeddings=[query_embedding], n_results=top_k
+        )
+
+        chunk_ids = results["ids"][0] if results["ids"] else []
+        documents = results["documents"][0] if results["documents"] else []
+        metadatas = results["metadatas"][0] if results["metadatas"] else []
+        distances = results["distances"][0] if results["distances"] else []
+
+        return [
+            SearchResult(
+                chunk_id=chunk_id,
+                document=document,
+                metadata=metadata,
+                score=1 - distance,
+            )
+            for chunk_id, document, metadata, distance in zip(
+                chunk_ids, documents, metadatas, distances
+            )
+        ]
