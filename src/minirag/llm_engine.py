@@ -1,4 +1,4 @@
-import json
+from abc import ABC, abstractmethod
 from typing import Any
 
 import requests
@@ -6,11 +6,23 @@ import requests
 from minirag.config import get_settings
 
 
+class InferenceEngine(ABC):
+    @abstractmethod
+    def generate(
+        self,
+        messages: str | list[dict[str, Any]],
+        *,
+        reasoning: bool = True,
+        last_response: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Generate a response and return the assistant message dict."""
+
+
 class InferenceError(Exception):
     """Raised when the LLM inference request fails."""
 
 
-class OpenRouterEngine:
+class OpenRouterEngine(InferenceEngine):
     """LLM inference engine backed by the OpenRouter API, with reasoning support."""
 
     BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -70,13 +82,11 @@ class OpenRouterEngine:
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                 },
-                data=json.dumps(
-                    {
-                        "model": self.model,
-                        "messages": payload_messages,
-                        "reasoning": {"enabled": reasoning},
-                    }
-                ),
+                json={
+                    "model": self.model,
+                    "messages": payload_messages,
+                    "reasoning": {"enabled": reasoning},
+                },
             )
             response.raise_for_status()
         except requests.RequestException as exc:

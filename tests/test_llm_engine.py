@@ -66,9 +66,7 @@ class TestOpenRouterEngine(unittest.TestCase):
     def test_generate_success(self, mock_post):
         mock_post.return_value = MagicMock(
             raise_for_status=MagicMock(),
-            json=MagicMock(
-                return_value={"choices": [{"message": {"content": "hi"}}]}
-            ),
+            json=MagicMock(return_value={"choices": [{"message": {"content": "hi"}}]}),
         )
         engine = OpenRouterEngine(model="m", api_key="k")
         result = engine.generate("hello")

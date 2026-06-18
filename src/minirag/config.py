@@ -1,5 +1,9 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables and ``.env``.
@@ -11,6 +15,11 @@ class Settings(BaseSettings):
 
     openrouter_api_key: str | None = None
     openrouter_model: str = "z-ai/glm-5.2"
+
+    openrouter_embed_model: str = "openai/text-embedding-3-small"
+
+    embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_model_cache_dir: str = str(_PROJECT_ROOT / "temp")
 
     model_config = SettingsConfigDict(
         env_file=".env",

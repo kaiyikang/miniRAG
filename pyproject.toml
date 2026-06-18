@@ -7,6 +7,10 @@ requires-python = ">=3.13"
 dependencies = [
     "pydantic-settings>=2.14.1",
     "requests>=2.32",
+    "sentence-transformers>=3.0",
+    "chromadb>=0.5",
+    "llama-index-core>=0.12",
+    "llama-index-readers-file>=0.4",
 ]
 
 [build-system]
