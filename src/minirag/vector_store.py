@@ -3,13 +3,8 @@ from chromadb import ClientAPI
 from abc import ABC, abstractmethod
 from typing import Any, NamedTuple
 from minirag.config import get_settings
+from minirag.types import Chunk
 from hashlib import sha256
-
-
-class Chunk(NamedTuple):
-    document: str
-    embedding: list[float]
-    metadata: dict[str, Any]
 
 
 class SearchResult(NamedTuple):
