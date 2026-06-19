@@ -1,11 +1,8 @@
 from abc import ABC, abstractmethod
 import os
-import json
-from pathlib import Path
 import requests
 
 from sentence_transformers import SentenceTransformer
-from minirag.config import get_settings
 
 
 class EmbeddingError(Exception):
@@ -21,21 +18,19 @@ class EmbeddingEngine(ABC):
 
 class SentenceTransformerEngine(EmbeddingEngine):
 
-    def __init__(self, model: str | None = None, cache_dir: str | None = None):
+    def __init__(self, model: str, cache_dir: str, batch_size: str = 5):
 
-        settings = get_settings()
-        model_name = model or settings.embedding_model
-        cache = (
-            cache_dir if cache_dir is not None else settings.embedding_model_cache_dir
-        )
+        if not model_name or not cache_dir:
+            raise ValueError("Embedding model name or cache dir can not be found!")
 
-        os.makedirs(cache, exist_ok=True)
-        self._model = SentenceTransformer(model_name, cache_folder=cache)
+        os.makedirs(cache_dir, exist_ok=True)
+        self._model = SentenceTransformer(model, cache_folder=cache_dir)
+        self._batch_size = batch_size
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        embeddings = self._model.encode(texts)
+        embeddings = self._model.encode(texts, batch_size=self._batch_size)
         return embeddings.tolist()
 
 
