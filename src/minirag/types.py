@@ -16,4 +16,4 @@ class SearchedChunk(NamedTuple):
 
 class Answer(NamedTuple):
     answer: str
-    sources: list[SearchedChunk]
+    sources: list[dict[str, Any]]

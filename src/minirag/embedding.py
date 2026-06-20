@@ -4,6 +4,8 @@ import requests
 
 from sentence_transformers import SentenceTransformer
 
+from minirag.config import get_settings
+
 
 class EmbeddingError(Exception):
     """Raised when the LLM embedding request fails."""
@@ -18,9 +20,9 @@ class EmbeddingEngine(ABC):
 
 class SentenceTransformerEngine(EmbeddingEngine):
 
-    def __init__(self, model: str, cache_dir: str, batch_size: str = 5):
+    def __init__(self, model: str, cache_dir: str, batch_size: int = 5):
 
-        if not model_name or not cache_dir:
+        if not model or not cache_dir:
             raise ValueError("Embedding model name or cache dir can not be found!")
 
         os.makedirs(cache_dir, exist_ok=True)
@@ -40,15 +42,14 @@ class OpenRouterEmbeddingEngine(EmbeddingEngine):
 
     def __init__(
         self,
-        model: str | None = None,
-        api_key: str | None = None,
+        model: str,
+        api_key: str,
     ):
-        settings = get_settings()
-        self.model = model or settings.openrouter_embed_model
-        self.api_key = api_key or settings.openrouter_api_key
-        if not self.api_key:
+        self.model = model
+        self.api_key = api_key
+        if not self.api_key or not self.model:
             raise RuntimeError(
-                "OpenRouter API key is required. Pass api_key=... or set OPENROUTER_API_KEY."
+                "OpenRouter model and API key are required. Pass model=... and api_key=..."
             )
 
     def embed(self, texts: list[str]) -> list[list[float]]:

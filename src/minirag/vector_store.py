@@ -1,7 +1,7 @@
 import chromadb
 from chromadb import ClientAPI
 from abc import ABC, abstractmethod
-from minirag.types import Chunk, SearchResult
+from minirag.types import Chunk, SearchedChunk
 from hashlib import sha256
 
 
@@ -59,7 +59,7 @@ class ChromaVectorStore(VectorStore):
         self,
         query_embedding: list[float],
         top_k: int = 10,
-    ) -> list[SearchResult]:
+    ) -> list[SearchedChunk]:
         if not query_embedding:
             return []
         results = self._collection.query(
@@ -72,7 +72,7 @@ class ChromaVectorStore(VectorStore):
         distances = results["distances"][0] if results["distances"] else []
 
         return [
-            SearchResult(
+            SearchedChunk(
                 chunk_id=chunk_id,
                 document=document,
                 metadata=metadata,

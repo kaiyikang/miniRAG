@@ -2,7 +2,7 @@ import unittest
 
 import chromadb
 
-from minirag.vector_store import Chunk, ChromaVectorStore, SearchResult
+from minirag.vector_store import Chunk, ChromaVectorStore, SearchedChunk
 
 
 class TestChromaVectorStore(unittest.TestCase):
@@ -43,7 +43,7 @@ class TestChromaVectorStore(unittest.TestCase):
         results = self.store.search(query_embedding=[1.0, 0.0], top_k=2)
 
         self.assertEqual(len(results), 2)
-        self.assertIsInstance(results[0], SearchResult)
+        self.assertIsInstance(results[0], SearchedChunk)
         self.assertEqual(results[0].document, "hello world")
         self.assertEqual(results[0].metadata, {"source": "a"})
         self.assertGreaterEqual(results[0].score, 0.0)

@@ -1,8 +1,6 @@
-import os
 import unittest
 from unittest.mock import MagicMock, patch
 
-from minirag.config import Settings
 from minirag.embedding import (
     EmbeddingError,
     OpenRouterEmbeddingEngine,
@@ -12,8 +10,10 @@ from minirag.embedding import (
 
 class TestSentenceTransformerEngine(unittest.TestCase):
     @patch("minirag.embedding.SentenceTransformer")
-    def test_init_uses_default_model(self, mock_cls):
-        engine = SentenceTransformerEngine()
+    def test_init_uses_model_and_cache_dir(self, mock_cls):
+        engine = SentenceTransformerEngine(
+            model="all-MiniLM-L6-v2", cache_dir="/tmp/cache"
+        )
         mock_cls.assert_called_once()
         self.assertEqual(engine._model, mock_cls.return_value)
 
@@ -30,25 +30,27 @@ class TestSentenceTransformerEngine(unittest.TestCase):
         )
         mock_cls.return_value = mock_model
 
-        engine = SentenceTransformerEngine()
+        engine = SentenceTransformerEngine(
+            model="all-MiniLM-L6-v2", cache_dir="/tmp/cache"
+        )
         result = engine.embed(["hello", "world"])
 
         self.assertEqual(result, [[0.1, 0.2], [0.3, 0.4]])
-        mock_model.encode.assert_called_once_with(["hello", "world"])
+        mock_model.encode.assert_called_once_with(["hello", "world"], batch_size=5)
 
     @patch("minirag.embedding.SentenceTransformer")
     def test_embed_empty_list_returns_empty_list(self, mock_cls):
-        engine = SentenceTransformerEngine()
+        engine = SentenceTransformerEngine(
+            model="all-MiniLM-L6-v2", cache_dir="/tmp/cache"
+        )
         result = engine.embed([])
         self.assertEqual(result, [])
 
 
 class TestOpenRouterEmbeddingEngine(unittest.TestCase):
-    @patch("minirag.embedding.get_settings")
-    def test_init_missing_api_key_raises(self, mock_get_settings):
-        mock_get_settings.return_value = Settings(openrouter_api_key=None)
+    def test_init_missing_api_key_raises(self):
         with self.assertRaises(RuntimeError) as ctx:
-            OpenRouterEmbeddingEngine(api_key=None)
+            OpenRouterEmbeddingEngine(model="m", api_key=None)
         self.assertIn("OpenRouter API key is required", str(ctx.exception))
 
     @patch("minirag.embedding.requests.post")
@@ -73,7 +75,7 @@ class TestOpenRouterEmbeddingEngine(unittest.TestCase):
         import requests
 
         mock_post.side_effect = requests.ConnectionError("boom")
-        engine = OpenRouterEmbeddingEngine(api_key="k")
+        engine = OpenRouterEmbeddingEngine(model="m", api_key="k")
         with self.assertRaises(EmbeddingError) as ctx:
             engine.embed(["hello"])
         self.assertIn("LLM embedding failed", str(ctx.exception))
@@ -84,7 +86,7 @@ class TestOpenRouterEmbeddingEngine(unittest.TestCase):
             raise_for_status=MagicMock(),
             json=MagicMock(return_value={"data": []}),
         )
-        engine = OpenRouterEmbeddingEngine(api_key="k")
+        engine = OpenRouterEmbeddingEngine(model="m", api_key="k")
         with self.assertRaises(EmbeddingError) as ctx:
             engine.embed(["hello"])
         self.assertIn("Unexpected response format", str(ctx.exception))

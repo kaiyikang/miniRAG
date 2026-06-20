@@ -1,42 +1,38 @@
-import os
 import unittest
 from unittest.mock import MagicMock, patch
 
-from minirag.config import Settings
 from minirag.llm_engine import InferenceError, OpenRouterEngine
 
 
 class TestOpenRouterEngine(unittest.TestCase):
-    def test_init_with_explicit_api_key(self):
-        engine = OpenRouterEngine(api_key="test-key")
+    def test_init_with_explicit_api_key_and_model(self):
+        engine = OpenRouterEngine(model="z-ai/glm-5.2", api_key="test-key")
         self.assertEqual(engine.api_key, "test-key")
         self.assertEqual(engine.model, "z-ai/glm-5.2")
 
-    def test_init_with_env_var(self):
-        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "env-key"}):
-            engine = OpenRouterEngine()
-        self.assertEqual(engine.api_key, "env-key")
-
-    @patch("minirag.llm_engine.get_settings")
-    def test_init_missing_api_key_raises(self, mock_get_settings):
-        mock_get_settings.return_value = Settings(openrouter_api_key=None)
+    def test_init_missing_model_raises(self):
         with self.assertRaises(RuntimeError) as ctx:
-            OpenRouterEngine()
+            OpenRouterEngine(model="", api_key="test-key")
+        self.assertIn("OpenRouter API key is required", str(ctx.exception))
+
+    def test_init_missing_api_key_raises(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            OpenRouterEngine(model="z-ai/glm-5.2", api_key=None)
         self.assertIn("OpenRouter API key is required", str(ctx.exception))
 
     def test_prepare_messages_string_input(self):
-        engine = OpenRouterEngine(api_key="k")
+        engine = OpenRouterEngine(model="m", api_key="k")
         result = engine._prepare_messages("hello", None)
         self.assertEqual(result, [{"role": "user", "content": "hello"}])
 
     def test_prepare_messages_list_input(self):
-        engine = OpenRouterEngine(api_key="k")
+        engine = OpenRouterEngine(model="m", api_key="k")
         msgs = [{"role": "user", "content": "hi"}]
         result = engine._prepare_messages(msgs, None)
         self.assertEqual(result, msgs)
 
     def test_prepare_messages_with_last_response_and_reasoning(self):
-        engine = OpenRouterEngine(api_key="k")
+        engine = OpenRouterEngine(model="m", api_key="k")
         last = {"content": "ok", "reasoning_details": [{"text": "r1"}]}
         result = engine._prepare_messages([{"role": "user", "content": "q"}], last)
         self.assertEqual(
@@ -52,7 +48,7 @@ class TestOpenRouterEngine(unittest.TestCase):
         )
 
     def test_prepare_messages_with_last_response_no_reasoning(self):
-        engine = OpenRouterEngine(api_key="k")
+        engine = OpenRouterEngine(model="m", api_key="k")
         last = {"content": "ok"}
         result = engine._prepare_messages([{"role": "user", "content": "q"}], last)
         self.assertEqual(
@@ -86,7 +82,7 @@ class TestOpenRouterEngine(unittest.TestCase):
         import requests
 
         mock_post.side_effect = requests.ConnectionError("boom")
-        engine = OpenRouterEngine(api_key="k")
+        engine = OpenRouterEngine(model="m", api_key="k")
         with self.assertRaises(InferenceError) as ctx:
             engine.generate("hello")
         self.assertIn("LLM inference failed", str(ctx.exception))
@@ -98,7 +94,7 @@ class TestOpenRouterEngine(unittest.TestCase):
         mock_post.return_value = MagicMock(
             raise_for_status=MagicMock(side_effect=requests.HTTPError("403")),
         )
-        engine = OpenRouterEngine(api_key="k")
+        engine = OpenRouterEngine(model="m", api_key="k")
         with self.assertRaises(InferenceError) as ctx:
             engine.generate("hello")
         self.assertIn("LLM inference failed", str(ctx.exception))
@@ -109,7 +105,7 @@ class TestOpenRouterEngine(unittest.TestCase):
             raise_for_status=MagicMock(),
             json=MagicMock(return_value={}),
         )
-        engine = OpenRouterEngine(api_key="k")
+        engine = OpenRouterEngine(model="m", api_key="k")
         with self.assertRaises(InferenceError) as ctx:
             engine.generate("hello")
         self.assertIn("Unexpected response format", str(ctx.exception))
@@ -120,7 +116,7 @@ class TestOpenRouterEngine(unittest.TestCase):
             raise_for_status=MagicMock(),
             json=MagicMock(return_value={"choices": []}),
         )
-        engine = OpenRouterEngine(api_key="k")
+        engine = OpenRouterEngine(model="m", api_key="k")
         with self.assertRaises(InferenceError) as ctx:
             engine.generate("hello")
         self.assertIn("Unexpected response format", str(ctx.exception))
@@ -131,7 +127,7 @@ class TestOpenRouterEngine(unittest.TestCase):
             raise_for_status=MagicMock(),
             json=MagicMock(return_value={"choices": "bad"}),
         )
-        engine = OpenRouterEngine(api_key="k")
+        engine = OpenRouterEngine(model="m", api_key="k")
         with self.assertRaises(InferenceError) as ctx:
             engine.generate("hello")
         self.assertIn("Unexpected response format", str(ctx.exception))
