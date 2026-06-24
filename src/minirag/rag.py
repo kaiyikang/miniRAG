@@ -81,10 +81,12 @@ class RAGPipeline:
             },
         ]
 
+        # Generation
         try:
             response = self._llm.generate(messages=messages)["content"]
         except (KeyError, TypeError, InferenceError):
             return Answer(answer="Error: failed to generate a response.", sources=[])
+
         self._history.extend(
             [
                 {"role": "user", "content": question},

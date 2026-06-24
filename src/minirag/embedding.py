@@ -4,8 +4,6 @@ import requests
 
 from sentence_transformers import SentenceTransformer
 
-from minirag.config import get_settings
-
 
 class EmbeddingError(Exception):
     """Raised when the LLM embedding request fails."""
