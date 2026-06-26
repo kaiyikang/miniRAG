@@ -11,6 +11,7 @@ class SearchedChunk(NamedTuple):
     chunk_id: str
     document: str
     metadata: dict[str, Any]
+    embedding: list[float]
     score: float  # 1 - distance
 
 

@@ -63,22 +63,24 @@ class ChromaVectorStore(VectorStore):
         if not query_embedding:
             return []
         results = self._collection.query(
-            query_embeddings=[query_embedding], n_results=top_k
+            query_embeddings=[query_embedding], n_results=top_k, include=["embeddings"]
         )
 
         chunk_ids = results["ids"][0] if results["ids"] else []
         documents = results["documents"][0] if results["documents"] else []
         metadatas = results["metadatas"][0] if results["metadatas"] else []
         distances = results["distances"][0] if results["distances"] else []
+        embeddings = results["embeddings"][0] if results["embeddings"] else []
 
         return [
             SearchedChunk(
                 chunk_id=chunk_id,
                 document=document,
                 metadata=metadata,
-                score=1 - distance,
+                embedding=embedding
+                score= 1 - distance,
             )
-            for chunk_id, document, metadata, distance in zip(
-                chunk_ids, documents, metadatas, distances
+            for chunk_id, document, metadata, embedding, distance in zip(
+                chunk_ids, documents, metadatas, embeddings, distances
             )
         ]
