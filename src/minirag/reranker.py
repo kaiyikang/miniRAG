@@ -59,12 +59,13 @@ class VectorReranker(Reranker):
 
 class CrossEncoderReranker(Reranker):
 
-    def __ini__(self, model: str, cache_dir=str):
-        if not model or not cache_dir:
-            raise ValueError("Embedding model name or cache dir can not be found!")
+    def __init__(self, model: str, cache_dir: str | None = None):
+        if not model:
+            raise ValueError("cross-encoder model name is required")
 
-        os.makedirs(cache_dir, exist_ok=True)
-        self._model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        if cache_dir:
+            os.makedirs(cache_dir, exist_ok=True)
+        self._model = CrossEncoder(model, cache_dir=cache_dir)
 
     def rank(
         self,
@@ -73,9 +74,24 @@ class CrossEncoderReranker(Reranker):
         chunks: list[SearchedChunk],
     ) -> list[SearchedChunk]:
 
-        pair = []
-        for chunk in chunks:
-            pair.append((query_text, chunk.document))
-        scores = self._model.predict(pair)
-        new_chunks = []
-        for chunk in chunks:
+        if not query_text:
+            raise ValueError("query text is required for CrossEncoderReranker")
+        if not chunks:
+            return []
+
+        scores = self._model.predict([(query_text, chunk.document) for chunk in chunks])
+
+        return sorted(
+            [
+                SearchedChunk(
+                    chunk_id=chunk.chunk_id,
+                    document=chunk.document,
+                    metadata=chunk.metadata,
+                    embedding=chunk.embedding,
+                    score=score,
+                )
+                for chunk, score in zip(chunks, scores)
+            ],
+            key=lambda x: x.score,
+            reverse=True,
+        )
