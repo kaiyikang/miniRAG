@@ -22,6 +22,10 @@ class VectorStore(ABC):
     ) -> list[SearchedChunk]:
         """Search for the top-k chunks most similar to the query embedding."""
 
+    @abstractmethod
+    def get_all_chunks(self) -> list[SearchedChunk]:
+        """Get all chunks"""
+
 
 class ChromaVectorStore(VectorStore):
 
@@ -84,5 +88,26 @@ class ChromaVectorStore(VectorStore):
             )
             for chunk_id, document, metadata, embedding, distance in zip(
                 chunk_ids, documents, metadatas, embeddings, distances
+            )
+        ]
+
+    def get_all_chunks(self):
+        results = self._collection.get(include=["documents", "metadatas", "embeddings"])
+        if not results:
+            return []
+
+        return [
+            SearchedChunk(
+                chunk_id=chunk_id,
+                document=document,
+                metadata=metadata,
+                embedding=embedding,
+                score=0.0,
+            )
+            for chunk_id, document, metadata, embedding in zip(
+                results["ids"],
+                results["documents"],
+                results["metadatas"],
+                results["embeddings"],
             )
         ]

@@ -1,7 +1,9 @@
 from minirag.types import Chunk
 from llama_index.core import SimpleDirectoryReader, Document
 from abc import ABC, abstractmethod
-
+from llama_index.core.readers.base import BaseReader
+from llama_index.readers.file import MarkdownReader
+import re
 from pathlib import Path
 
 
@@ -52,6 +54,11 @@ class SpacyChunker(Chunker):
         return [s.text for s in self.model(text).sents]
 
 
+class ParagraphChunker(Chunker):
+    def chunk(self, text: str) -> list[str]:
+        return [p.strip() for p in text.split("\n\n") if p.strip()]
+
+
 class SlidingWindowChunker(Chunker):
 
     def __init__(self, chunk_size: int = 256, overlap: int = 50):
@@ -74,10 +81,22 @@ class SlidingWindowChunker(Chunker):
         return [text[i : i + self.chunk_size] for i in range(0, len(text), self.step)]
 
 
+class MarkdownWithoutFrontmatterReader(BaseReader):
+    _frontmatter_re = re.compile(r"^---\s*\n.*?\n---\s*\n", re.DOTALL)
+
+    def load_data(self, file_path, extra_info=None):
+        docs = MarkdownReader().load_data(file_path, extra_info=extra_info)
+        for doc in docs:
+            doc.text = self._frontmatter_re.sub("", doc.text)
+        return docs
+
+
 def load_documents(path: str) -> list[Document]:
     if not Path(path).exists():
         raise FileNotFoundError(f"Document path not found: {path}")
-    reader = SimpleDirectoryReader(input_dir=path)
+    reader = SimpleDirectoryReader(
+        input_dir=path, file_extractor={".md": MarkdownWithoutFrontmatterReader}
+    )
     return reader.load_data()
 
 

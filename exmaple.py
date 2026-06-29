@@ -3,7 +3,7 @@ from minirag.rag import RAGPipeline
 from minirag.embedding import SentenceTransformerEngine
 from minirag.vector_store import ChromaVectorStore
 from minirag.llm_engine import OpenRouterEngine
-from minirag.document import SlidingWindowChunker
+from minirag.document import SpacyChunker
 
 settings = get_settings()
 
@@ -17,13 +17,13 @@ pipeline = RAGPipeline(
         vector_store_path=settings.vector_store_path,
         collection_name=settings.collection_name,
     ),
-    chunker=SlidingWindowChunker(),
+    chunker=SpacyChunker(),
     llm=OpenRouterEngine(
         model=settings.openrouter_model, api_key=settings.openrouter_api_key
     ),
 )
 
-# pipeline.index_documents(settings.documents_dir)
-answer = pipeline.query("What is RAG?")
-print(answer.answer)
-print(answer.sources)
+pipeline.index_documents(settings.documents_dir)
+# answer = pipeline.query("What is RAG?")
+# print(answer.answer)
+# print(answer.sources)
