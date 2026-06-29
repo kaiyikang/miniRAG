@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     embedding_model_cache_dir: str = str(_PROJECT_ROOT / "temp")
 
     vector_store_path: str = str(_PROJECT_ROOT / "store")
-    collection_name: str = "defualt_collection"
+    collection_name: str = "default_collection"
 
     documents_dir: str = str(_PROJECT_ROOT / "docs")
 
@@ -31,6 +31,9 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    def __str__(self):
+        return self.model_dump_json(indent=2)
 
 
 def get_settings() -> Settings:

@@ -63,7 +63,9 @@ class ChromaVectorStore(VectorStore):
         if not query_embedding:
             return []
         results = self._collection.query(
-            query_embeddings=[query_embedding], n_results=top_k, include=["embeddings"]
+            query_embeddings=[query_embedding],
+            n_results=top_k,
+            include=["embeddings", "documents", "metadatas", "distances"],
         )
 
         chunk_ids = results["ids"][0] if results["ids"] else []
@@ -77,8 +79,8 @@ class ChromaVectorStore(VectorStore):
                 chunk_id=chunk_id,
                 document=document,
                 metadata=metadata,
-                embedding=embedding
-                score= 1 - distance,
+                embedding=embedding,
+                score=1 - distance,
             )
             for chunk_id, document, metadata, embedding, distance in zip(
                 chunk_ids, documents, metadatas, embeddings, distances

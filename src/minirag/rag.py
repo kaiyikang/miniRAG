@@ -59,10 +59,11 @@ class RAGPipeline:
     def query(self, question: str, top_k: int = 5) -> Answer:
         # transformation
         transformed_question = question  # rewriting / HyDe / ...
-
         # Retrieval
         ## Dense retrieval
         question_embedding = self._embed.embed([transformed_question])[0]
+        breakpoint()
+
         retrieved_chunks = self._vstore.search(question_embedding, top_k=top_k)
         # have to rerank
 
