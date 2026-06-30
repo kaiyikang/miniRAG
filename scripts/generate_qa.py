@@ -18,7 +18,7 @@ You are given a text chunk. Generate {n_questions} diverse question-answer pairs
 Rules:
 1. Each question must be answerable using ONLY the information in this chunk.
 2. Do NOT ask about titles, dates, authors, or document metadata.
-3. Do NOT ask yes/no questions.
+3. Do NOT ask about English related information.
 4. Include at least one "what/who/when" factual question and one "why/how" explanatory question.
 5. Questions should be specific and natural, as if a real user asked them.
 
@@ -53,11 +53,11 @@ def parse_qa_content(content: str) -> list[QAPair]:
 def generate_qa_for_chunk(
     text: str, llm: OpenRouterEngine, n_questions: int = 3
 ) -> list[dict]:
-    print(text)
+
     content = llm.generate(
         messages=QA_GENERATION_PROMPT.format(n_questions=n_questions, text=text)
     )["content"]
-    print(content)
+
     content = parse_qa_content(content)
 
     return content
@@ -77,12 +77,12 @@ if __name__ == "__main__":
 
     os.makedirs("data", exist_ok=True)
     chunks = store.get_all_chunks()
-
     with open("data/qa_dataset.jsonl", "w", encoding="utf-8") as f:
-        for chunk in chunks:
+        for idx, chunk in enumerate(chunks):
             # too short, don't generate
             if len(chunk.document.split()) < 20:
                 continue
+            print(f"{idx}/{len(chunks)}")
             try:
                 qa_pairs = generate_qa_for_chunk(chunk.document, llm)
                 for qa in qa_pairs:

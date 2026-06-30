@@ -86,17 +86,19 @@ class MarkdownWithoutFrontmatterReader(BaseReader):
 
     def load_data(self, file_path, extra_info=None):
         docs = MarkdownReader().load_data(file_path, extra_info=extra_info)
-        for doc in docs:
-            doc.text = self._frontmatter_re.sub("", doc.text)
-        return docs
+        return [
+            Document(
+                text=self._frontmatter_re.sub("", doc.text),
+                metadata=doc.metadata,
+            )
+            for doc in docs
+        ]
 
 
 def load_documents(path: str) -> list[Document]:
     if not Path(path).exists():
         raise FileNotFoundError(f"Document path not found: {path}")
-    reader = SimpleDirectoryReader(
-        input_dir=path, file_extractor={".md": MarkdownWithoutFrontmatterReader}
-    )
+    reader = SimpleDirectoryReader(input_dir=path)
     return reader.load_data()
 
 
