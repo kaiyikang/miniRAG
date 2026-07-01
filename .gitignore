@@ -13,3 +13,5 @@ temp/
 *.sql
 *.jsonl
 bin/
+*.bin
+*.sqlite3
