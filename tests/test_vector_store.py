@@ -59,6 +59,41 @@ class TestChromaVectorStore(unittest.TestCase):
         results = self.store.search(query_embedding=[1.0, 0.0], top_k=5)
         self.assertEqual(results, [])
 
+    def test_get_all_chunks_returns_chunks(self):
+        chunks = [
+            Chunk(document="hello world", embedding=[1.0, 0.0], metadata={"source": "a"}),
+        ]
+        self.store.add_chunks(chunks)
+
+        results = self.store.get_all_chunks()
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].document, "hello world")
+        self.assertEqual(results[0].score, 0.0)
+
+    def test_get_all_chunks_empty_collection_returns_empty_list(self):
+        # Use a fresh collection with no data
+        client = chromadb.Client()
+        store = ChromaVectorStore(
+            vector_store_path="memory",
+            collection_name="empty_collection",
+            client=client,
+        )
+        results = store.get_all_chunks()
+        self.assertEqual(results, [])
+        client.delete_collection("empty_collection")
+
+    def test_get_all_chunks_none_results_returns_empty_list(self):
+        client = chromadb.Client()
+        store = ChromaVectorStore(
+            vector_store_path="memory",
+            collection_name="none_collection",
+            client=client,
+        )
+        store._collection.get = lambda **kwargs: None
+        results = store.get_all_chunks()
+        self.assertEqual(results, [])
+        client.delete_collection("none_collection")
+
 
 if __name__ == "__main__":
     unittest.main()

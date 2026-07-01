@@ -26,6 +26,19 @@ class TestVectorReranker(unittest.TestCase):
         with self.assertRaises(ValueError):
             reranker.rank(None, None, chunks)
 
+    def test_raises_when_query_text_provided(self):
+        reranker = VectorReranker()
+        chunks = [SearchedChunk("1", "doc a", {}, [1.0, 0.0], 0.0)]
+
+        with self.assertRaises(ValueError):
+            reranker.rank("text", [1.0, 0.0], chunks)
+
+    def test_cosine_zero_magnitude(self):
+        reranker = VectorReranker()
+        chunks = [SearchedChunk("1", "doc a", {}, [0.0, 0.0], 0.0)]
+        result = reranker.rank(None, [1.0, 0.0], chunks)
+        self.assertEqual(result[0].score, 0.0)
+
 
 class TestCrossReranker(unittest.TestCase):
 
@@ -52,3 +65,21 @@ class TestCrossReranker(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             reranker.rank(None, None, chunks)
+
+    def test_init_missing_model_raises(self):
+        with self.assertRaises(ValueError):
+            CrossEncoderReranker("")
+
+    @patch("minirag.reranker.CrossEncoder")
+    def test_raises_when_query_embedding_provided(self, mock_cross_encoder_class):
+        reranker = CrossEncoderReranker("dummy_model", "/tmp/cache")
+        chunks = [SearchedChunk("1", "doc a", {}, [0.0], 0.0)]
+
+        with self.assertRaises(ValueError):
+            reranker.rank("query", [1.0], chunks)
+
+    @patch("minirag.reranker.CrossEncoder")
+    def test_empty_chunks_returns_empty_list(self, mock_cross_encoder_class):
+        reranker = CrossEncoderReranker("dummy_model", "/tmp/cache")
+        result = reranker.rank("query", None, [])
+        self.assertEqual(result, [])

@@ -36,6 +36,9 @@ def token_f1(expected_answer: str, actual_answer: str):
     expected_answer = clean_and_set(expected_answer)
     actual_answer = clean_and_set(actual_answer)
 
+    if not expected_answer or not actual_answer:
+        return 0.0
+
     matched_num = len(expected_answer & actual_answer)
     precision = matched_num / len(actual_answer)
     recall = matched_num / len(expected_answer)

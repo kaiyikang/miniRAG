@@ -69,6 +69,47 @@ class TestRagPipeline(unittest.TestCase):
 
         answer = self.pipeline.query("What is RAG?")
 
-        self.assertEqual(answer.answer, "RAG is retrieval augmented generation system.")
+        self.assertEqual(answer.content, "RAG is retrieval augmented generation system.")
         self.assertEqual(len(answer.sources), 1)
         self.assertEqual(answer.sources[0]["file_name"], "test.txt")
+
+    def test_index_documents_empty_dir_raises(self):
+        with self.assertRaises(ValueError):
+            self.pipeline.index_documents("")
+
+    @patch("minirag.rag.load_documents")
+    def test_index_documents_no_docs_does_not_crash(self, mock_load):
+        mock_load.return_value = []
+        self.pipeline.index_documents(self.document_dir)
+
+    def test_query_no_retrieved_chunks(self):
+        answer = self.pipeline.query("something unrelated")
+        self.assertEqual(answer.content, "RAG is retrieval augmented generation system.")
+        self.assertEqual(answer.sources, [])
+
+    def test_query_inference_error_handling(self):
+        class BadLLM(InferenceEngine):
+            def generate(self, messages, *, reasoning=True, last_response=None):
+                from minirag.llm_engine import InferenceError
+                raise InferenceError("boom")
+
+        pipeline = RAGPipeline(
+            embed=MockEmbedding(),
+            vector_store=self.store,
+            chunker=SlidingWindowChunker(),
+            llm=BadLLM(),
+        )
+        answer = pipeline.query("q")
+        self.assertEqual(answer.content, "Error: failed to generate a response.")
+
+    def test_history_trimming(self):
+        for i in range(10):
+            self._write_doc(f"doc{i}.txt", f"content {i}")
+        self.pipeline.index_documents(self.document_dir)
+
+        for i in range(5):
+            self.pipeline.query(f"q{i}")
+
+        # MAX_HISTORY_MESSAGES = 6 (3 user + 3 assistant pairs would be 6 messages)
+        # After 5 queries, history should have at most 6 messages
+        self.assertLessEqual(len(self.pipeline._history), RAGPipeline.MAX_HISTORY_MESSAGES)

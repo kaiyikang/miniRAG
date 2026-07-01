@@ -6,6 +6,8 @@ from llama_index.core import Document
 from minirag.document import (
     SlidingWindowChunker,
     SpacyChunker,
+    ParagraphChunker,
+    MarkdownWithoutFrontmatterReader,
     chunk_documents,
     load_documents,
 )
@@ -78,6 +80,54 @@ class TestSpacyChunker(unittest.TestCase):
         self.assertEqual(result[0], "First sentence.")
         self.assertEqual(result[1], "Second sentence.")
         self.assertEqual(result[2], "Third one.")
+
+
+class TestParagraphChunker(unittest.TestCase):
+    def test_empty_text_returns_empty_list(self):
+        chunker = ParagraphChunker()
+        result = chunker.chunk("")
+        self.assertEqual(result, [])
+
+    def test_splits_by_double_newline(self):
+        chunker = ParagraphChunker()
+        text = "Para 1.\n\nPara 2.\n\nPara 3."
+        result = chunker.chunk(text)
+        self.assertEqual(result, ["Para 1.", "Para 2.", "Para 3."])
+
+    def test_skips_empty_paragraphs(self):
+        chunker = ParagraphChunker()
+        text = "Para 1.\n\n\n\nPara 2."
+        result = chunker.chunk(text)
+        self.assertEqual(result, ["Para 1.", "Para 2."])
+
+
+class TestMarkdownWithoutFrontmatterReader(unittest.TestCase):
+    @patch("minirag.document.MarkdownReader")
+    def test_strips_frontmatter(self, mock_reader_cls):
+        from llama_index.core import Document
+        mock_doc = Document(text="---\ntitle: X\n---\n\nbody", metadata={"file_path": "f.md"})
+        mock_reader = MagicMock()
+        mock_reader.load_data.return_value = [mock_doc]
+        mock_reader_cls.return_value = mock_reader
+
+        reader = MarkdownWithoutFrontmatterReader()
+        result = reader.load_data("f.md")
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].text, "body")
+
+
+class TestSpacyChunkerImportError(unittest.TestCase):
+    def test_import_error_raises(self):
+        import builtins
+        real_import = builtins.__import__
+        def mock_import(name, *args, **kwargs):
+            if name == "spacy":
+                raise ImportError("No module named 'spacy'")
+            return real_import(name, *args, **kwargs)
+        with patch.object(builtins, "__import__", mock_import):
+            with self.assertRaises(ImportError):
+                SpacyChunker()
 
 
 class TestChunkerComparison(unittest.TestCase):

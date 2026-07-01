@@ -47,11 +47,19 @@ class TestSentenceTransformerEngine(unittest.TestCase):
         self.assertEqual(result, [])
 
 
+    @patch("minirag.embedding.SentenceTransformer")
+    def test_init_missing_model_or_cache_dir_raises(self, mock_cls):
+        with self.assertRaises(ValueError):
+            SentenceTransformerEngine(model="", cache_dir="/tmp/cache")
+        with self.assertRaises(ValueError):
+            SentenceTransformerEngine(model="m", cache_dir="")
+
+
 class TestOpenRouterEmbeddingEngine(unittest.TestCase):
     def test_init_missing_api_key_raises(self):
         with self.assertRaises(RuntimeError) as ctx:
             OpenRouterEmbeddingEngine(model="m", api_key=None)
-        self.assertIn("OpenRouter API key is required", str(ctx.exception))
+        self.assertIn("OpenRouter model and API key are required", str(ctx.exception))
 
     @patch("minirag.embedding.requests.post")
     def test_embed_success(self, mock_post):
