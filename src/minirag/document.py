@@ -98,7 +98,7 @@ class MarkdownWithoutFrontmatterReader(BaseReader):
 def load_documents(path: str) -> list[Document]:
     if not Path(path).exists():
         raise FileNotFoundError(f"Document path not found: {path}")
-    reader = SimpleDirectoryReader(input_dir=path)
+    reader = SimpleDirectoryReader(input_dir=path, recursive=True)
     return reader.load_data()
 
 
