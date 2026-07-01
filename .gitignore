@@ -7,3 +7,9 @@ __pycache__/
 .claude/
 .pytest_cache/
 temp/
+
+# Intermediate products
+*.md
+*.sql
+*.jsonl
+bin/
