@@ -111,6 +111,7 @@ class RAGPipeline:
             )
         self._emit(query_id, "generate", response_preview=response[:200])
 
+        # Handle History
         self._history.extend(
             [
                 {"role": "user", "content": question},
@@ -121,9 +122,16 @@ class RAGPipeline:
         if len(self._history) > self.MAX_HISTORY_MESSAGES:
             self._history = self._history[-self.MAX_HISTORY_MESSAGES :]
 
-        self._emit(query_id, "complete")
-        return Answer(
+        # Final Answer
+        answer = Answer(
             content=response,
             sources=[chunk.metadata for chunk in ranked_chunks],
             retrieved_chunk_ids=[chunk.chunk_id for chunk in ranked_chunks],
         )
+        self._emit(
+            query_id,
+            "complete",
+            content=answer.content,
+            sources=answer.sources,
+        )
+        return answer
