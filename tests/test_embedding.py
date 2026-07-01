@@ -71,7 +71,7 @@ class TestOpenRouterEmbeddingEngine(unittest.TestCase):
         engine = OpenRouterEmbeddingEngine(model="m", api_key="k")
         result = engine.embed(["hello"])
 
-        self.assertEqual(result, [0.1, 0.2])
+        self.assertEqual(result, [[0.1, 0.2]])
         mock_post.assert_called_once()
         _, kwargs = mock_post.call_args
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer k")
@@ -89,7 +89,7 @@ class TestOpenRouterEmbeddingEngine(unittest.TestCase):
         self.assertIn("LLM embedding failed", str(ctx.exception))
 
     @patch("minirag.embedding.requests.post")
-    def test_embed_unexpected_response_format(self, mock_post):
+    def test_embed_count_mismatch_raises(self, mock_post):
         mock_post.return_value = MagicMock(
             raise_for_status=MagicMock(),
             json=MagicMock(return_value={"data": []}),
@@ -97,7 +97,7 @@ class TestOpenRouterEmbeddingEngine(unittest.TestCase):
         engine = OpenRouterEmbeddingEngine(model="m", api_key="k")
         with self.assertRaises(EmbeddingError) as ctx:
             engine.embed(["hello"])
-        self.assertIn("Unexpected response format", str(ctx.exception))
+        self.assertIn("count mismatch", str(ctx.exception))
 
 
 if __name__ == "__main__":
