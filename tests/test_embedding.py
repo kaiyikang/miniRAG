@@ -9,7 +9,7 @@ from minirag.embedding import (
 
 
 class TestSentenceTransformerEngine(unittest.TestCase):
-    @patch("minirag.embedding.SentenceTransformer")
+    @patch("sentence_transformers.SentenceTransformer")
     def test_init_uses_model_and_cache_dir(self, mock_cls):
         engine = SentenceTransformerEngine(
             model="all-MiniLM-L6-v2", cache_dir="/tmp/cache"
@@ -17,12 +17,12 @@ class TestSentenceTransformerEngine(unittest.TestCase):
         mock_cls.assert_called_once()
         self.assertEqual(engine._model, mock_cls.return_value)
 
-    @patch("minirag.embedding.SentenceTransformer")
+    @patch("sentence_transformers.SentenceTransformer")
     def test_init_uses_custom_model_and_cache_dir(self, mock_cls):
         engine = SentenceTransformerEngine(model="custom-model", cache_dir="/tmp/cache")
         mock_cls.assert_called_once_with("custom-model", cache_folder="/tmp/cache")
 
-    @patch("minirag.embedding.SentenceTransformer")
+    @patch("sentence_transformers.SentenceTransformer")
     def test_embed_returns_vectors(self, mock_cls):
         mock_model = MagicMock()
         mock_model.encode.return_value = MagicMock(
@@ -38,7 +38,7 @@ class TestSentenceTransformerEngine(unittest.TestCase):
         self.assertEqual(result, [[0.1, 0.2], [0.3, 0.4]])
         mock_model.encode.assert_called_once_with(["hello", "world"], batch_size=5)
 
-    @patch("minirag.embedding.SentenceTransformer")
+    @patch("sentence_transformers.SentenceTransformer")
     def test_embed_empty_list_returns_empty_list(self, mock_cls):
         engine = SentenceTransformerEngine(
             model="all-MiniLM-L6-v2", cache_dir="/tmp/cache"
@@ -47,7 +47,7 @@ class TestSentenceTransformerEngine(unittest.TestCase):
         self.assertEqual(result, [])
 
 
-    @patch("minirag.embedding.SentenceTransformer")
+    @patch("sentence_transformers.SentenceTransformer")
     def test_init_missing_model_or_cache_dir_raises(self, mock_cls):
         with self.assertRaises(ValueError):
             SentenceTransformerEngine(model="", cache_dir="/tmp/cache")
