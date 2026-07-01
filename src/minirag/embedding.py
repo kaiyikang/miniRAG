@@ -2,8 +2,6 @@ from abc import ABC, abstractmethod
 import os
 import requests
 
-from sentence_transformers import SentenceTransformer
-
 
 class EmbeddingError(Exception):
     """Raised when the LLM embedding request fails."""
@@ -19,6 +17,7 @@ class EmbeddingEngine(ABC):
 class SentenceTransformerEngine(EmbeddingEngine):
 
     def __init__(self, model: str, cache_dir: str, batch_size: int = 5):
+        from sentence_transformers import SentenceTransformer
 
         if not model or not cache_dir:
             raise ValueError("Embedding model name or cache dir can not be found!")

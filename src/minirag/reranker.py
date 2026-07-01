@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from minirag.types import SearchedChunk
 import math
-from sentence_transformers import CrossEncoder
 import os
 
 
@@ -63,6 +62,8 @@ class VectorReranker(Reranker):
 class CrossEncoderReranker(Reranker):
 
     def __init__(self, model: str, cache_dir: str | None = None):
+        from sentence_transformers import CrossEncoder
+
         if not model:
             raise ValueError("cross-encoder model name is required")
 
