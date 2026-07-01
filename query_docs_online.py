@@ -24,5 +24,5 @@ pipeline = RAGPipeline(
 )
 
 answer = pipeline.query("What is RAG?")
-print(answer.answer)
+print(answer.content)
 print(answer.sources)
