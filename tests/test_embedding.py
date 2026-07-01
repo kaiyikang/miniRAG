@@ -89,6 +89,26 @@ class TestOpenRouterEmbeddingEngine(unittest.TestCase):
         self.assertIn("LLM embedding failed", str(ctx.exception))
 
     @patch("minirag.embedding.requests.post")
+    def test_embed_respects_custom_batch_size(self, mock_post):
+        def _make_response(batch):
+            return MagicMock(
+                raise_for_status=MagicMock(),
+                json=MagicMock(
+                    return_value={"data": [{"embedding": [0.1]} for _ in batch]}
+                ),
+            )
+
+        mock_post.side_effect = lambda *args, **kwargs: _make_response(
+            kwargs["json"]["input"]
+        )
+
+        engine = OpenRouterEmbeddingEngine(model="m", api_key="k", batch_size=2)
+        result = engine.embed(["a", "b", "c"])
+
+        self.assertEqual(result, [[0.1], [0.1], [0.1]])
+        self.assertEqual(mock_post.call_count, 2)
+
+    @patch("minirag.embedding.requests.post")
     def test_embed_count_mismatch_raises(self, mock_post):
         mock_post.return_value = MagicMock(
             raise_for_status=MagicMock(),
