@@ -1,4 +1,12 @@
 from typing import NamedTuple, Any
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class RAGEvent:
+    event_id: str
+    step: str
+    data: dict[str, Any] = field(default_factory=dict)
 
 
 class Chunk(NamedTuple):

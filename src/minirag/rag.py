@@ -2,8 +2,11 @@ from minirag.embedding import EmbeddingEngine
 from minirag.vector_store import VectorStore
 from minirag.document import Chunker, load_documents, chunk_documents
 from minirag.llm_engine import InferenceEngine, InferenceError
-from minirag.types import Chunk, Answer
+from minirag.types import Chunk, Answer, RAGEvent
+from minirag.reranker import Reranker
 from typing import Any
+import queue
+import uuid
 
 
 class RAGPipeline:
@@ -21,12 +24,17 @@ class RAGPipeline:
         vector_store: VectorStore,
         chunker: Chunker,
         llm: InferenceEngine,
+        event_queue: queue.Queue | None = None,
     ):
         self._embed = embed
         self._vstore = vector_store
         self._chunker = chunker
         self._llm = llm
         self._history: list[dict[str, Any]] = []  # or ChatHistory
+        self._events = event_queue or queue.Queue()
+
+    def _emit(self, event_id: str, step: str, **data: Any) -> None:
+        self._events.put(RAGEvent(event_id=event_id, step=step, data=data))
 
     def index_documents(self, document_dirs: str | list[str]) -> None:
         if isinstance(document_dirs, str):
@@ -56,20 +64,30 @@ class RAGPipeline:
     def clear_history(self):
         self._history = []
 
-    def query(self, question: str, top_k: int = 5) -> Answer:
+    def query(self, question: str, retrieve_k: int = 10, rerank_k: int = 5) -> Answer:
+        query_id = uuid.uuid4().hex
+        self._emit(query_id, "start", question=question)
+
         # transformation
         transformed_question = question  # rewriting / HyDe / ...
+        self._emit(query_id, "transform", question=transformed_question)
+
         # Retrieval
         ## Dense retrieval
-        question_embedding = self._embed.embed([transformed_question])[0]
+        query_embedding = self._embed.embed([transformed_question])[0]
+        self._emit(query_id, "embed")
 
-        retrieved_chunks = self._vstore.search(question_embedding, top_k=top_k)
-        # have to rerank
+        retrieved_chunks = self._vstore.search(query_embedding, top_k=retrieve_k)
+        self._emit(query_id, "retrieve", chunk_count=len(retrieved_chunks))
 
-        if not retrieved_chunks:
+        # placeholder for rerank
+        ranked_chunks = retrieved_chunks[:rerank_k]
+        self._emit(query_id, "rerank", chunk_count=len(ranked_chunks))
+
+        if not ranked_chunks:
             context = "No relevant context found."
         else:
-            context = "\n".join([chunk.document for chunk in retrieved_chunks])
+            context = "\n".join([chunk.document for chunk in ranked_chunks])
 
         # Augmented
         messages = [
@@ -85,11 +103,13 @@ class RAGPipeline:
         try:
             response = self._llm.generate(messages=messages)["content"]
         except (KeyError, TypeError, InferenceError):
+            self._emit(query_id, "error", reason="generation_failed")
             return Answer(
                 content="Error: failed to generate a response.",
                 sources=[],
                 retrieved_chunk_ids=[],
             )
+        self._emit(query_id, "generate", response_preview=response[:200])
 
         self._history.extend(
             [
@@ -101,8 +121,9 @@ class RAGPipeline:
         if len(self._history) > self.MAX_HISTORY_MESSAGES:
             self._history = self._history[-self.MAX_HISTORY_MESSAGES :]
 
+        self._emit(query_id, "complete")
         return Answer(
             content=response,
-            sources=[chunk.metadata for chunk in retrieved_chunks],
-            retrieved_chunk_ids=[chunk.chunk_id for chunk in retrieved_chunks],
+            sources=[chunk.metadata for chunk in ranked_chunks],
+            retrieved_chunk_ids=[chunk.chunk_id for chunk in ranked_chunks],
         )

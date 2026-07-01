@@ -4,10 +4,24 @@ from minirag.embedding import OpenRouterEmbeddingEngine
 from minirag.vector_store import ChromaVectorStore
 from minirag.llm_engine import OpenRouterEngine
 from minirag.document import SlidingWindowChunker
+import queue
+import threading
 
 settings = get_settings()
-
 print(settings)
+
+q = queue.Queue()
+done = threading.Event()
+
+
+def consumer():
+    while True:
+        event = q.get()
+        print(f"[{event.step}] {event.data}", flush=True)
+        if event.step in ("complete", "error"):
+            done.set()
+            break
+
 
 pipeline = RAGPipeline(
     embed=OpenRouterEmbeddingEngine(
@@ -21,8 +35,12 @@ pipeline = RAGPipeline(
     llm=OpenRouterEngine(
         model=settings.openrouter_model, api_key=settings.openrouter_api_key
     ),
+    event_queue=q,
 )
 
+
+threading.Thread(target=consumer).start()
+
 answer = pipeline.query("What is RAG?")
-print(answer.content)
-print(answer.sources)
+done.wait()
+print(f"Answer: {answer.content}")
