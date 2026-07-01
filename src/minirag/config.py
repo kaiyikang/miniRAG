@@ -15,8 +15,7 @@ class Settings(BaseSettings):
 
     openrouter_api_key: str | None = None
     openrouter_model: str = "z-ai/glm-5.2"
-
-    openrouter_embed_model: str = "openai/text-embedding-3-small"
+    openrouter_embed_model: str = "google/gemini-embedding-2"
 
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_model_cache_dir: str = str(_PROJECT_ROOT / "temp")
