@@ -11,7 +11,7 @@ print(settings)
 
 pipeline = RAGPipeline(
     embed=OpenRouterEmbeddingEngine(
-        model=settings.openrouter_embed_model, cache_dir=settings.openrouter_api_key
+        model=settings.openrouter_embed_model, api_key=settings.openrouter_api_key
     ),
     vector_store=ChromaVectorStore(
         vector_store_path=settings.vector_store_path,
