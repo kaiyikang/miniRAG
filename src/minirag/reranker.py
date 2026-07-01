@@ -24,6 +24,9 @@ class VectorReranker(Reranker):
         chunks: list[SearchedChunk],
     ) -> list[SearchedChunk]:
 
+        if query_text:
+            raise ValueError("VectorReranker doesn't support text")
+
         if not query_embedding or not all([chunk.embedding for chunk in chunks]):
             raise ValueError("The query or chunks must have embedding")
 
@@ -73,6 +76,9 @@ class CrossEncoderReranker(Reranker):
         query_embedding: list[float] | None,
         chunks: list[SearchedChunk],
     ) -> list[SearchedChunk]:
+
+        if query_embedding:
+            raise ValueError("CrossEncoderReranker doesn't need embedding")
 
         if not query_text:
             raise ValueError("query text is required for CrossEncoderReranker")

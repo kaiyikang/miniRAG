@@ -23,7 +23,6 @@ pipeline = RAGPipeline(
     ),
 )
 
-pipeline.index_documents(settings.documents_dir)
-# answer = pipeline.query("What is RAG?")
-# print(answer.answer)
-# print(answer.sources)
+answer = pipeline.query("What is RAG?")
+print(answer.answer)
+print(answer.sources)
