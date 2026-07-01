@@ -16,6 +16,6 @@ class SearchedChunk(NamedTuple):
 
 
 class Answer(NamedTuple):
-    answer: str
+    content: str
     sources: list[dict[str, Any]]
-    chunk_ids: list[str]
+    retrieved_chunk_ids: list[str]

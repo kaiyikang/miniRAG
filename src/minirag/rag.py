@@ -62,7 +62,6 @@ class RAGPipeline:
         # Retrieval
         ## Dense retrieval
         question_embedding = self._embed.embed([transformed_question])[0]
-        breakpoint()
 
         retrieved_chunks = self._vstore.search(question_embedding, top_k=top_k)
         # have to rerank
@@ -86,7 +85,11 @@ class RAGPipeline:
         try:
             response = self._llm.generate(messages=messages)["content"]
         except (KeyError, TypeError, InferenceError):
-            return Answer(answer="Error: failed to generate a response.", sources=[])
+            return Answer(
+                content="Error: failed to generate a response.",
+                sources=[],
+                retrieved_chunk_ids=[],
+            )
 
         self._history.extend(
             [
@@ -99,5 +102,7 @@ class RAGPipeline:
             self._history = self._history[-self.MAX_HISTORY_MESSAGES :]
 
         return Answer(
-            answer=response, sources=[chunk.metadata for chunk in retrieved_chunks]
+            content=response,
+            sources=[chunk.metadata for chunk in retrieved_chunks],
+            retrieved_chunk_ids=[chunk.chunk_id for chunk in retrieved_chunks],
         )
