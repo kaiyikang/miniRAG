@@ -9,10 +9,6 @@ state = {
 }
 
 
-# agent is not a prompt
-# it is the role + input + output schema + allowed updates + behavior (do what)
-
-
 class Agent:
     def __init__(
         self, name, role, input_keys, output_keys, allowed_update_keys, run_func
@@ -67,6 +63,14 @@ Only return JSON:
     return call_llm_json(prompt)
 
 
+def retriever_agent_func(state):
+    query = state["query"]
+    # docs = retrieve(query)
+    docs = ["get reference from db"]
+
+    return {"docs": docs}
+
+
 classifier_agent = Agent(
     name="classifier",
     role="Classify the user query",
@@ -75,9 +79,25 @@ classifier_agent = Agent(
     allowed_update_keys={"task_type", "reason_summary"},
     run_func=llm_classifier_agent_func,
 )
+
+retriever_agent = Agent(
+    name="retriever",
+    role="Retrieve relevant documents",
+    input_keys={"query"},
+    output_keys={"docs"},
+    allowed_update_keys={"docs"},
+    run_func=retriever_agent_func,
+)
+
+
 update = classifier_agent.run(state)
 state = apply_update(
     state=state, update=update, allowed_keys=classifier_agent.allowed_updated_keys
 )
+print(state)
 
+update = retriever_agent.run(state)
+state = apply_update(
+    state=state, update=update, allowed_keys=retriever_agent.allowed_updated_keys
+)
 print(state)
