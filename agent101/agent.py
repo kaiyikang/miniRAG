@@ -5,18 +5,19 @@ state = {
     "task_type": None,
     "docs": [],
     "answer": None,
+    "classification_reason": None,
     "verified": False,
 }
 
 
 class Agent:
     def __init__(
-        self, name, role, input_keys, output_keys, allowed_update_keys, run_func
+        self, name, role, input_keys, output_schema, allowed_update_keys, run_func
     ):
         self.name = name
         self.role = role
         self.input_keys = input_keys
-        self.output_keys = output_keys
+        self.output_schema = output_schema
 
         self.allowed_updated_keys = allowed_update_keys
         self.run_func = run_func
@@ -24,6 +25,16 @@ class Agent:
     def run(self, state):
         local_inputs = {key: state.get(key) for key in self.input_keys}
         return self.run_func(local_inputs)
+
+    def validate_output(output, schema):
+        for key, expected_type in schema.items():
+            if key not in output:
+                raise ValueError(f"Missing required key: {key}")
+            if not isinstance(output[key], expected_type):
+                raise TypeError(
+                    f"Key {key} should be {expected_type}, got {type(output[key])}"
+                )
+        return True
 
 
 def apply_update(state, update, allowed_keys):
@@ -75,7 +86,7 @@ classifier_agent = Agent(
     name="classifier",
     role="Classify the user query",
     input_keys={"query"},
-    output_keys={"task_type", "reason_summary"},
+    output_schema={"task_type": str, "classification_reason": str},
     allowed_update_keys={"task_type", "reason_summary"},
     run_func=llm_classifier_agent_func,
 )
@@ -84,7 +95,7 @@ retriever_agent = Agent(
     name="retriever",
     role="Retrieve relevant documents",
     input_keys={"query"},
-    output_keys={"docs"},
+    output_schema={"docs": list},
     allowed_update_keys={"docs"},
     run_func=retriever_agent_func,
 )
