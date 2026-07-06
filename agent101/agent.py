@@ -20,6 +20,17 @@ def classify_agent(state):
     return {"task_type": task_type}
 
 
+def apply_update(state, update, allowed_keys):
+    for key, value in update.items():
+        if key in allowed_keys:
+            state[key] = value
+    return state
+
+
 update = classify_agent(state)
-state.update(update)
+# verified must not be updated!
+# classify_agent can only update the task_type
+# state.update(update)
+state = apply_update(state=state, update=update, allowed_keys={"task_type"})
+
 print(state)
