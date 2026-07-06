@@ -8,7 +8,9 @@ from minirag.vector_store import ChromaVectorStore
 from minirag.rag import RAGPipeline
 from minirag.embedding import EmbeddingEngine
 from minirag.llm_engine import InferenceEngine
+from minirag.query_transform import QueryTransformer
 import os
+import queue
 from minirag.document import SlidingWindowChunker
 
 
@@ -101,6 +103,50 @@ class TestRagPipeline(unittest.TestCase):
         )
         answer = pipeline.query("q")
         self.assertEqual(answer.content, "Error: failed to generate a response.")
+
+    def test_query_transform_success_emits_no_fallback(self):
+        class UpperCaseTransformer(QueryTransformer):
+            def transform(self, question: str) -> str:
+                return question.upper()
+
+        events: queue.Queue = queue.Queue()
+        pipeline = RAGPipeline(
+            embed=MockEmbedding(),
+            vector_store=self.store,
+            chunker=SlidingWindowChunker(),
+            llm=MockLLM(),
+            query_transformer=UpperCaseTransformer(),
+            event_queue=events,
+        )
+
+        pipeline.query("what is rag?")
+
+        transform_events = [e for e in list(events.queue) if e.step == "transform"]
+        self.assertEqual(len(transform_events), 1)
+        self.assertEqual(transform_events[0].data["question"], "WHAT IS RAG?")
+        self.assertFalse(transform_events[0].data["fallback"])
+
+    def test_query_transform_failure_falls_back_to_question(self):
+        class BrokenTransformer(QueryTransformer):
+            def transform(self, question: str) -> str:
+                return ""
+
+        events: queue.Queue = queue.Queue()
+        pipeline = RAGPipeline(
+            embed=MockEmbedding(),
+            vector_store=self.store,
+            chunker=SlidingWindowChunker(),
+            llm=MockLLM(),
+            query_transformer=BrokenTransformer(),
+            event_queue=events,
+        )
+
+        pipeline.query("what is rag?")
+
+        transform_events = [e for e in list(events.queue) if e.step == "transform"]
+        self.assertEqual(len(transform_events), 1)
+        self.assertEqual(transform_events[0].data["question"], "what is rag?")
+        self.assertTrue(transform_events[0].data["fallback"])
 
     def test_history_trimming(self):
         for i in range(10):

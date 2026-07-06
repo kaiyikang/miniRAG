@@ -2,6 +2,7 @@ from minirag.embedding import EmbeddingEngine
 from minirag.vector_store import VectorStore
 from minirag.document import Chunker, load_documents, chunk_documents
 from minirag.llm_engine import InferenceEngine, InferenceError
+from minirag.query_transform import IdentityTransformer, QueryTransformer
 from minirag.types import Chunk, Answer, RAGEvent
 from minirag.reranker import Reranker
 from typing import Any
@@ -24,12 +25,14 @@ class RAGPipeline:
         vector_store: VectorStore,
         chunker: Chunker,
         llm: InferenceEngine,
+        query_transformer: QueryTransformer = IdentityTransformer(),
         event_queue: queue.Queue | None = None,
     ):
         self._embed = embed
         self._vstore = vector_store
         self._chunker = chunker
         self._llm = llm
+        self._query_transformer = query_transformer
         self._history: list[dict[str, Any]] = []  # or ChatHistory
         self._events = event_queue or queue.Queue()
 
@@ -69,8 +72,22 @@ class RAGPipeline:
         self._emit(query_id, "start", question=question)
 
         # transformation
-        transformed_question = question  # rewriting / HyDe / ...
-        self._emit(query_id, "transform", question=transformed_question)
+        transformed_question = self._query_transformer.transform(question)
+        if transformed_question == "":
+            transformed_question = question
+            self._emit(
+                query_id,
+                "transform",
+                question=transformed_question,
+                fallback=True,
+            )
+        else:
+            self._emit(
+                query_id,
+                "transform",
+                question=transformed_question,
+                fallback=False,
+            )
 
         # Retrieval
         ## Dense retrieval
@@ -128,6 +145,7 @@ class RAGPipeline:
             sources=[chunk.metadata for chunk in ranked_chunks],
             retrieved_chunk_ids=[chunk.chunk_id for chunk in ranked_chunks],
         )
+
         self._emit(
             query_id,
             "complete",
