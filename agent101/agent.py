@@ -7,6 +7,17 @@ state = {
 }
 
 
+# agent is not a prompt
+# it is the role + input + output schema + allowed updates + behavior (do what)
+
+
+class Agent:
+    def __init__(self, name, allowed_update_keys, run):
+        self.name = name
+        self.allowed_updated_keys = allowed_update_keys
+        self.run = run
+
+
 def classify_agent(state):
     query = state["query"]
 
@@ -27,10 +38,12 @@ def apply_update(state, update, allowed_keys):
     return state
 
 
-update = classify_agent(state)
-# verified must not be updated!
-# classify_agent can only update the task_type
-# state.update(update)
-state = apply_update(state=state, update=update, allowed_keys={"task_type"})
+classifier = Agent(
+    name="classifier", allowed_update_keys={"task_type"}, run=classify_agent
+)
+update = classifier.run(state)
+state = apply_update(
+    state=state, update=update, allowed_keys=classifier.allowed_updated_keys
+)
 
 print(state)
