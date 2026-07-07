@@ -3,6 +3,8 @@ from typing import NamedTuple
 import re
 from pathlib import Path
 import json
+import random
+import traceback
 
 
 class EvalSample(NamedTuple):
@@ -48,11 +50,18 @@ def token_f1(expected_answer: str, actual_answer: str):
 
 
 class Evaluator:
-    def __init__(self, pipeline: RAGPipeline, dataset_dir: str, recall_top_k: int = 5):
+    def __init__(
+        self,
+        pipeline: RAGPipeline,
+        dataset_dir: str,
+        suffix: str = "",
+        recall_top_k: int = 5,
+    ):
         self._pipeline = pipeline
-        self._dataset = Path(dataset_dir) / "qa_dataset.jsonl"
-        self._eval_results = Path(dataset_dir) / "eval_results.jsonl"
-        self._eval_summary = Path(dataset_dir) / "eval_summary.json"
+        Path(dataset_dir).mkdir(parents=True, exist_ok=True)
+        self._dataset = Path(dataset_dir) / "qa_dataset10.jsonl"
+        self._eval_results = Path(dataset_dir) / f"eval_results_{suffix}.jsonl"
+        self._eval_summary = Path(dataset_dir) / f"eval_summary_{suffix}.json"
 
         if not self._dataset.exists():
             raise ValueError("Cannot find the qa dataset!")
@@ -75,16 +84,14 @@ class Evaluator:
             answer_f1=token_f1(sample.expected_answer, answer.content),
         )
 
-    def evaluate(self):
-        limit = 5
+    def evaluate(self, n_samples: int = 20):
         avg_recall = 0.0
         avg_f1 = 0.0
         total = 0
-        with (
-            open(self._eval_results, "w", encoding="utf-8") as out_f,
-            open(self._dataset, "r", encoding="utf-8") as in_f,
-        ):
-            for n, sample in enumerate(in_f, 1):
+        lines = self._dataset.read_text(encoding="utf-8").splitlines()
+        sampled = random.sample(lines, min(n_samples, len(lines)))
+        with open(self._eval_results, "w", encoding="utf-8") as out_f:
+            for n, sample in enumerate(sampled, 1):
                 try:
                     result = self._evaluate_sample(
                         EvalSample(**json.loads(sample)), top_k=self._recall_top_k
@@ -95,11 +102,10 @@ class Evaluator:
                     avg_f1 += (result.answer_f1 - avg_f1) / n
                     total += 1
                     print(f"n = {n}, avg_recall={avg_recall}, avg_f1={avg_f1}")
-                except Exception as e:
-                    print(f"error on sample {n}: {e}")
+                except Exception:
+                    print(f"error on sample {n}:")
+                    traceback.print_exc()
                     continue
-                if n > limit:
-                    break
 
         with open(self._eval_summary, "w", encoding="utf-8") as f:
             f.write(
