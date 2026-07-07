@@ -39,6 +39,9 @@ class RAGPipeline:
     def get_llm(self):
         return self._llm
 
+    def get_embed(self):
+        return self._embed
+
     def _emit(self, event_id: str, step: str, **data: Any) -> None:
         self._events.put(RAGEvent(event_id=event_id, step=step, data=data))
 

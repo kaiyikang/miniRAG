@@ -1,0 +1,9 @@
+{
+  "retrieval_recall@5": 0.611111111111111,
+  "answer_f1": 0.3290665106740095,
+  "n_samples": 36,
+  "avg_context_relevancy": 0.15122370858117923,
+  "n_context_relevancy": 36,
+  "n_answer_relevancy": 36,
+  "top_k": 5
+}

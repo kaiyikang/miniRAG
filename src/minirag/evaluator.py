@@ -1,11 +1,13 @@
 from minirag.rag import RAGPipeline
 from minirag.llm_engine import InferenceEngine, InferenceError
+from minirag.embedding import EmbeddingEngine
 from llama_index.core.node_parser.text.utils import split_by_sentence_tokenizer
 from typing import NamedTuple
 import re
 from pathlib import Path
 import json
 import traceback
+import math
 
 
 class EvalSample(NamedTuple):
@@ -23,6 +25,7 @@ class EvalResult(NamedTuple):
     retrieval_recall: float
     answer_f1: float
     context_relevancy: float | None
+    answer_relevancy: float | None
 
 
 class Evaluator:
@@ -50,12 +53,19 @@ class Evaluator:
         answer = self._pipeline.query(question=sample.question)
 
         # Metrics
-        retrieval_recall_result = retrieval_recall(
+        retrieval_recall_result = cal_retrieval_recall(
             sample.expected_chunk_ids, answer.retrieved_chunk_ids, top_k
         )
-        answer_f1 = token_f1(sample.expected_answer, answer.content)
-        context_relevancy_result = context_relevancy(
+        answer_f1 = cal_token_f1(sample.expected_answer, answer.content)
+        context_relevancy = cal_context_relevancy(
             sample.question, answer.retrieved_chunks, self._pipeline.get_llm()
+        )
+
+        answer_relevancy = cal_answer_relevancy(
+            sample.question,
+            answer.content,
+            self._pipeline.get_llm(),
+            self._pipeline.get_embed(),
         )
 
         return EvalResult(
@@ -66,7 +76,8 @@ class Evaluator:
             retrieved_chunk_ids=answer.retrieved_chunk_ids,
             retrieval_recall=retrieval_recall_result,
             answer_f1=answer_f1,
-            context_relevancy=context_relevancy_result,
+            context_relevancy=context_relevancy,
+            answer_relevancy=answer_relevancy,
         )
 
     def evaluate(self):
@@ -74,6 +85,8 @@ class Evaluator:
         avg_f1 = 0.0
         avg_context_relevancy = 0.0
         n_context_relevancy = 0
+        avg_answer_relevancy = 0.0
+        n_answer_relevancy = 0
 
         total = 0
         lines = self._dataset.read_text(encoding="utf-8").splitlines()
@@ -85,6 +98,7 @@ class Evaluator:
                     )
                     out_f.write(json.dumps(result._asdict(), ensure_ascii=False) + "\n")
 
+                    # metrics
                     avg_recall += (result.retrieval_recall - avg_recall) / n
                     avg_f1 += (result.answer_f1 - avg_f1) / n
 
@@ -93,6 +107,12 @@ class Evaluator:
                             result.context_relevancy - avg_context_relevancy
                         ) / (n_context_relevancy + 1)
                         n_context_relevancy += 1
+
+                    if result.answer_relevancy is not None:
+                        avg_answer_relevancy += (
+                            result.answer_relevancy - avg_answer_relevancy
+                        ) / (n_answer_relevancy + 1)
+                        n_answer_relevancy += 1
 
                     total += 1
                     print(
@@ -112,6 +132,8 @@ class Evaluator:
                         "n_samples": total,
                         "avg_context_relevancy": avg_context_relevancy,
                         "n_context_relevancy": n_context_relevancy,
+                        "avg_answer_relevancy": avg_answer_relevancy,
+                        "n_answer_relevancy": n_answer_relevancy,
                         "top_k": self._recall_top_k,
                     },
                     ensure_ascii=False,
@@ -120,7 +142,7 @@ class Evaluator:
             )
 
 
-def retrieval_recall(
+def cal_retrieval_recall(
     expected_ids: list[str], retrieved_ids: list[str], k: int = 5
 ) -> float:
     if not expected_ids:
@@ -128,7 +150,7 @@ def retrieval_recall(
     return len(set(expected_ids) & set(retrieved_ids[:k])) / len(expected_ids)
 
 
-def token_f1(expected_answer: str, actual_answer: str) -> float:
+def cal_token_f1(expected_answer: str, actual_answer: str) -> float:
     def clean_and_set(text: str) -> set[str]:
         return set(re.sub(r"[^a-zA-Z0-9\s]", "", text.lower()).split())
 
@@ -146,10 +168,10 @@ def token_f1(expected_answer: str, actual_answer: str) -> float:
     return 2 * (precision * recall) / (precision + recall)
 
 
-def context_relevancy(
+def cal_context_relevancy(
     question: str, retrieved_chunks: list[str], llm: InferenceEngine
 ) -> float | None:
-
+    """relevancy: question - retrieved chunk"""
     if not retrieved_chunks:
         return 0.0
 
@@ -168,37 +190,97 @@ You are a RAG system evaluator. Please determine which of the following numbered
     sentences_str: str = "\n".join(
         [f"{idx+1}. {sent}" for idx, sent in enumerate(sentences)]
     )
-    num_retry = 0
-    while num_retry < 2:
-        try:
-            content = llm.generate(
-                context_relevancy_prompt.format(
-                    question=question, sentences=sentences_str
-                )
-            )["content"]
 
-            results = re.search(r"\[.*\]", content, re.DOTALL)
-            if not results:
-                raise ValueError("results has no content")
+    def fn():
+        content = llm.generate(
+            context_relevancy_prompt.format(question=question, sentences=sentences_str)
+        )["content"]
 
-            results = json.loads(results.group())
+        results = re.search(r"\[.*\]", content, re.DOTALL)
+        if not results:
+            raise ValueError("results has no content")
 
-            if not isinstance(results, list):
-                raise ValueError("results must be a list.")
+        results = json.loads(results.group())
 
-            if len(results) == 0:
-                return 0.0
-            elif all(1 <= i <= len(sentences) for i in results) and all(
-                isinstance(i, int) for i in results
-            ):
-                print(f"DEBUG: \n{sentences_str}\nresult:\n{results}")
-                return len(results) / len(sentences)
-            else:
-                raise ValueError("Verification failed")
-        except (ValueError, KeyError, TypeError, InferenceError):
-            num_retry += 1
+        if not isinstance(results, list):
+            raise ValueError("results must be a list.")
 
-    return None
+        if len(results) == 0:
+            return 0.0
+        elif all(1 <= i <= len(sentences) for i in results) and all(
+            isinstance(i, int) for i in results
+        ):
+            return len(results) / len(sentences)
+        else:
+            raise ValueError("Verification failed")
+
+    return _retry_until(fn=fn)
+
+
+def cal_answer_relevancy(
+    question: str,
+    answer: str,
+    llm: InferenceEngine,
+    embed: EmbeddingEngine,
+    n_questions: int = 3,
+) -> float | None:
+
+    perfunctory_judgment_prompt = """You are evaluating whether an answer to a question actually commits to a specific response, or evades/refuses to answer.\n\nQuestion:\n{question}\n\nAnswer:\n{answer}\n\nAn answer is "noncommittal" if it says things like "I don't know", "the context does not provide this information", "I cannot answer this question", or otherwise avoids giving a specific, substantive answer.\n\nOutput only a bool in this exact format: true or false. Do not output any other text or explanation."""
+
+    reverse_inference_prompt = """You are given an answer. Generate {n_questions} distinct questions that this answer could plausibly be responding to. Each generated question must be answerable using only the information in the answer.\n\nAnswer:\n{answer}\n\nOutput only a JSON array of {n_questions} strings, for example ["question 1", "question 2", "question 3"]. Do not output any other text or explanation."""
+
+    if not question:
+        return None
+
+    # bad answer will not be counted
+    if not answer:
+        return 0.0
+
+    # perfunctory judgment
+    def _perfunctory_judgement_fn():
+        perfunctory_judgment = llm.generate(
+            perfunctory_judgment_prompt.format(question=question, answer=answer)
+        )["content"]
+        if perfunctory_judgment.strip().lower() in {
+            "true",
+            "1",
+            "yes",
+        }:
+            return 0.0
+        return perfunctory_judgment
+
+    perfunctory_judgment = _retry_until(_perfunctory_judgement_fn)
+    if perfunctory_judgment == 0.0 or perfunctory_judgment == None:
+        return perfunctory_judgment
+
+    # reverse inference
+    def _reverse_inference_fn():
+        content = llm.generate(
+            reverse_inference_prompt.format(n_questions=n_questions, answer=answer)
+        )["content"]
+
+        reversed_questions = re.search(r"\[.*\]", content, re.DOTALL)
+        if not reversed_questions:
+            raise ValueError("reversed questions has no content")
+
+        reversed_questions = json.loads(reversed_questions.group())
+        if not isinstance(reversed_questions, list) or not all(
+            isinstance(i, str) for i in reversed_questions
+        ):
+            raise ValueError("reversed questions must be a list and have content")
+
+        return reversed_questions
+
+    reversed_questions = _retry_until(_reverse_inference_fn)
+    if not reversed_questions:
+        return None
+
+    # Similarity
+    question_embed = embed.embed([question])[0]
+    reversed_questions_embeds = embed.embed(reversed_questions)
+    return sum(
+        [_cosine_similarity(question_embed, q) for q in reversed_questions_embeds]
+    ) / len(reversed_questions_embeds)
 
 
 def _is_junk(sent: str) -> bool:
@@ -208,3 +290,29 @@ def _is_junk(sent: str) -> bool:
     if not re.search(r"[a-zA-Z]{2,}", sent):
         return True
     return False
+
+
+def _cosine_similarity(v1, v2):
+    def _dot_product(a, b):
+        return sum(x * y for x, y in zip(a, b))
+
+    def _magnitude(v):
+        return math.sqrt(sum(x**2 for x in v))
+
+    dot = _dot_product(v1, v2)
+    mag1 = _magnitude(v1)
+    mag2 = _magnitude(v2)
+    if mag1 == 0 or mag2 == 0:
+        return 0
+    return dot / (mag1 * mag2)
+
+
+def _retry_until(
+    fn, exceptions=(ValueError, KeyError, TypeError, InferenceError), max_attempts=2
+):
+    for _ in range(max_attempts):
+        try:
+            return fn()
+        except exceptions:
+            continue
+    return None
