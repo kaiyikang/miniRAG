@@ -36,6 +36,9 @@ class RAGPipeline:
         self._history: list[dict[str, Any]] = []  # or ChatHistory
         self._events = event_queue or queue.Queue()
 
+    def get_llm(self):
+        return self._llm
+
     def _emit(self, event_id: str, step: str, **data: Any) -> None:
         self._events.put(RAGEvent(event_id=event_id, step=step, data=data))
 
@@ -118,21 +121,22 @@ class RAGPipeline:
 
         # Generation
         try:
-            response = self._llm.generate(messages=messages)["content"]
+            content = self._llm.generate(messages=messages)["content"]
         except (KeyError, TypeError, InferenceError):
             self._emit(query_id, "error", reason="generation_failed")
             return Answer(
                 content="Error: failed to generate a response.",
                 sources=[],
                 retrieved_chunk_ids=[],
+                retrieved_chunks=[],
             )
-        self._emit(query_id, "generate", response_preview=response[:200])
+        self._emit(query_id, "generate", response_preview=content[:200])
 
         # Handle History
         self._history.extend(
             [
                 {"role": "user", "content": question},
-                {"role": "assistant", "content": response},
+                {"role": "assistant", "content": content},
             ]
         )
 
@@ -141,9 +145,10 @@ class RAGPipeline:
 
         # Final Answer
         answer = Answer(
-            content=response,
+            content=content,
             sources=[chunk.metadata for chunk in ranked_chunks],
             retrieved_chunk_ids=[chunk.chunk_id for chunk in ranked_chunks],
+            retrieved_chunks=[chunk.document for chunk in ranked_chunks],
         )
 
         self._emit(

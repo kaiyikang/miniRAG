@@ -27,3 +27,4 @@ class Answer(NamedTuple):
     content: str
     sources: list[dict[str, Any]]
     retrieved_chunk_ids: list[str]
+    retrieved_chunks: list[str]

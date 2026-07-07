@@ -1,6 +1,0 @@
-{
-  "retrieval_recall@5": 0.6,
-  "answer_f1": 0.4126359943044269,
-  "n_samples": 10,
-  "top_k": 5
-}

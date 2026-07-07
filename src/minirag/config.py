@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     )
 
     def __str__(self):
-        return self.model_dump_json(indent=2)
+        return self.model_dump_json(indent=2, exclude={"openrouter_api_key"})
 
 
 def get_settings() -> Settings:

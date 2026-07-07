@@ -57,6 +57,15 @@ class TestSlidingWindowChunker(unittest.TestCase):
         with self.assertRaises(ValueError):
             SlidingWindowChunker(chunk_size=5, overlap=10)
 
+    def test_chunk_boundary_does_not_split_a_word(self):
+        # "hello worl" | "d" is what a naive char-count cut would produce.
+        chunker = SlidingWindowChunker(chunk_size=10, overlap=0)
+        text = "hello world"
+        result = chunker.chunk(text)
+
+        self.assertEqual(result, ["hello", " world"])
+        self.assertEqual("".join(result), text)
+
 
 class TestSpacyChunker(unittest.TestCase):
     @classmethod
@@ -157,12 +166,13 @@ class TestChunkerComparison(unittest.TestCase):
             # Each chunk should end with sentence punctuation.
             self.assertTrue(chunk.endswith((".", "!", "?")))
 
-    def test_sliding_window_has_uniform_length(self):
+    def test_sliding_window_stays_within_chunk_size(self):
         sliding_chunks = self.sliding_chunker.chunk(self.SAMPLE_TEXT)
         lengths = [len(c) for c in sliding_chunks]
-        # Most chunks should be exactly chunk_size except possibly the last one.
-        for length in lengths[:-1]:
-            self.assertEqual(length, 50)
+        # No longer exactly chunk_size: boundaries snap back to the nearest
+        # space so words aren't split (see test_chunk_boundary_does_not_split_a_word).
+        for length in lengths:
+            self.assertLessEqual(length, 50)
 
 
 class TestLoadDocuments(unittest.TestCase):

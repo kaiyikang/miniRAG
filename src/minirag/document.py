@@ -78,7 +78,20 @@ class SlidingWindowChunker(Chunker):
         if len(text) <= self.chunk_size:
             return [text]
 
-        return [text[i : i + self.chunk_size] for i in range(0, len(text), self.step)]
+        chunks = []
+        i = 0
+        n = len(text)
+        while i < n:
+            end = min(i + self.chunk_size, n)
+            if end < n:
+                snap = text.rfind(" ", i, end)
+                if snap > i:
+                    end = snap
+            chunks.append(text[i:end])
+            if end >= n:
+                break
+            i = max(end - self.overlap, i + 1)
+        return chunks
 
 
 class MarkdownWithoutFrontmatterReader(BaseReader):
