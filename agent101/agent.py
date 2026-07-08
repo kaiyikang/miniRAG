@@ -23,10 +23,17 @@ class Agent:
         self.run_func = run_func
 
     def run(self, state):
+        # limit input
         local_inputs = {key: state.get(key) for key in self.input_keys}
-        return self.run_func(local_inputs)
+        
+        output = self.run_func(local_inputs)
+        
+        # limit output
+        self._validate_output(output, self.output_schema)
+        
+        return output
 
-    def validate_output(output, schema):
+    def _validate_output(self, output, schema):
         for key, expected_type in schema.items():
             if key not in output:
                 raise ValueError(f"Missing required key: {key}")
@@ -37,10 +44,16 @@ class Agent:
         return True
 
 
-def apply_update(state, update, allowed_keys):
+def apply_update(state, update, agent:Agent):
+    safe_update = {}
+    
     for key, value in update.items():
-        if key in allowed_keys:
+        if key in agent.allowed_updated_keys:
             state[key] = value
+        else:
+            print(f"Ignore unauthorized key from {agent.name}: {key}")
+    
+    state.update(safe_update)
     return state
 
 
@@ -67,7 +80,7 @@ User query: {state["query"]}
 Only return JSON:
 {{
   "task_type": "conceptual | implementation | debugging | retrieval_needed",
-  "reason_summary": "the reason with one sentence"
+  "classification_reason": "the reason with one sentence"
 }}
 """
 
@@ -102,13 +115,9 @@ retriever_agent = Agent(
 
 
 update = classifier_agent.run(state)
-state = apply_update(
-    state=state, update=update, allowed_keys=classifier_agent.allowed_updated_keys
-)
+state = apply_update( state=state, update=update, agent=classifier_agent)
 print(state)
 
 update = retriever_agent.run(state)
-state = apply_update(
-    state=state, update=update, allowed_keys=retriever_agent.allowed_updated_keys
-)
+state = apply_update(state=state, update=update, agent=retriever_agent)
 print(state)
