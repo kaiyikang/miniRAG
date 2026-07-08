@@ -1,14 +1,52 @@
 from utils import call_llm_json
+from typing import TypedDict, List, Optional, Any
 
-state = {
-    "query": "explain the RAG in code",
-    "task_type": None,
-    "docs": [],
-    "answer": None,
-    "classification_reason": None,
-    "verification_result": None,
-    "verified": False,
-}
+
+class RagState(TypedDict):
+    # Input from user
+    original_query: str
+    current_query: str
+
+    # Intermediate fields
+    classification_reason: str
+    task_type: str
+    plan: Optional[str]
+    docs: List[str]
+    reranked_docs: List[dict]
+    answer: str
+    verification_result: Optional[dict]
+
+    # Process Control for Orchestrator
+    next_agent: str
+    step: int
+    max_steps: int
+    exit_reason: str
+    verified: bool
+
+    # Debug
+    trace: List[dict]
+    query_history: List[str]
+
+
+def create_initial_state(query="从代码角度解释 multi-agent RAG") -> RagState:
+    return {
+        "original_query": query,
+        "current_query": "what is multi-agent RAG implementation loop",
+        "classification_reason": None,
+        "task_type": None,
+        "docs": [],
+        "reranked_docs": [],
+        "answer": None,
+        "verification_result": None,
+        "next_agent": None,
+        "step": 0,
+        "max_steps": 6,
+        "exit_reason": None,
+        "verified": False,
+        # Debug
+        "trace": [],
+        "query_history": [],
+    }
 
 
 class Agent:
@@ -59,7 +97,7 @@ def apply_update(state, update, agent: Agent):
 
 
 def classify_agent_func(state):
-    query = state["query"]
+    query = state["original_query"]
 
     if "code" in query or "implementation" in query:
         task_type = "implementation"
@@ -79,7 +117,7 @@ def llm_classifier_agent_func(local_input):
 
 your are question classifier.
 
-User query: {local_input["query"]}
+User query: {local_input["original_query"]}
 
 Only return JSON:
 {{
@@ -92,7 +130,7 @@ Only return JSON:
 
 
 def llm_answer_agent_func(local_input):
-    query = local_input["query"]
+    query = local_input["original_query"]
     docs = local_input["docs"]
     prompt = f"""
 your are question answer.
@@ -125,7 +163,7 @@ def verifier_agent_func(local_input):
 
 
 def retriever_agent_func(local_input):
-    query = local_input["query"]
+    query = local_input["original_query"]
 
     docs = [
         {"id": "doc_1", "text": "RAG means retrieval augmented generation."},
@@ -145,7 +183,7 @@ def retriever_agent_func(local_input):
 classifier_agent = Agent(
     name="classifier",
     role="Classify the user query",
-    input_keys={"query"},
+    input_keys={"original_query"},
     output_schema={"task_type": str, "classification_reason": str},
     allowed_update_keys={"task_type", "classification_reason"},
     run_func=llm_classifier_agent_func,
@@ -154,7 +192,7 @@ classifier_agent = Agent(
 retriever_agent = Agent(
     name="retriever",
     role="Retrieve relevant documents",
-    input_keys={"query"},
+    input_keys={"original_query"},
     output_schema={"docs": list},
     allowed_update_keys={"docs"},
     run_func=retriever_agent_func,
@@ -163,7 +201,7 @@ retriever_agent = Agent(
 answer_agent = Agent(
     name="answer",
     role="Generate an answer based on retrieved docs",
-    input_keys={"query", "docs"},
+    input_keys={"original_query", "docs"},
     output_schema={"answer": str, "citations": list},
     allowed_update_keys={"answer", "citations"},
     run_func=llm_answer_agent_func,
@@ -172,13 +210,15 @@ answer_agent = Agent(
 verifier_agent = Agent(
     name="verifier",
     role="Verify whether the answer is supported by documents",
-    input_keys={"query", "docs", "answer", "citations"},
+    input_keys={"original_query", "docs", "answer", "citations"},
     output_schema={"verification_result": bool, "reason": str},
     allowed_update_keys={"verification_result"},
     run_func=verifier_agent_func,
 )
 
 if __name__ == "__main__":
+    state = create_initial_state()
+
     update = classifier_agent.run(state)
     state = apply_update(state=state, update=update, agent=classifier_agent)
     print(state)
