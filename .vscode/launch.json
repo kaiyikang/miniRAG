@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug agent101",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/agent101/agent.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/agent101"
+            }
+        }
+    ]
+}

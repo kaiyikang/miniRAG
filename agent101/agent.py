@@ -6,6 +6,7 @@ state = {
     "docs": [],
     "answer": None,
     "classification_reason": None,
+    "verification_result": None,
     "verified": False,
 }
 
@@ -19,18 +20,18 @@ class Agent:
         self.input_keys = input_keys
         self.output_schema = output_schema
 
-        self.allowed_updated_keys = allowed_update_keys
+        self.allowed_update_keys = allowed_update_keys
         self.run_func = run_func
 
     def run(self, state):
         # limit input
         local_inputs = {key: state.get(key) for key in self.input_keys}
-        
+
         output = self.run_func(local_inputs)
-        
+
         # limit output
         self._validate_output(output, self.output_schema)
-        
+
         return output
 
     def _validate_output(self, output, schema):
@@ -44,15 +45,15 @@ class Agent:
         return True
 
 
-def apply_update(state, update, agent:Agent):
+def apply_update(state, update, agent: Agent):
     safe_update = {}
-    
+
     for key, value in update.items():
-        if key in agent.allowed_updated_keys:
-            state[key] = value
+        if key in agent.allowed_update_keys:
+            safe_update[key] = value
         else:
             print(f"Ignore unauthorized key from {agent.name}: {key}")
-    
+
     state.update(safe_update)
     return state
 
@@ -67,15 +68,18 @@ def classify_agent_func(state):
     else:
         task_type = "general"
 
-    return {"task_type": task_type}
+    return {
+        "task_type": task_type,
+        "classification_reason": "Classified by simple keyword rules.",
+    }
 
 
-def llm_classifier_agent_func(state):
+def llm_classifier_agent_func(local_input):
     prompt = f"""
 
 your are question classifier.
 
-User query: {state["query"]}
+User query: {local_input["query"]}
 
 Only return JSON:
 {{
@@ -87,10 +91,53 @@ Only return JSON:
     return call_llm_json(prompt)
 
 
-def retriever_agent_func(state):
-    query = state["query"]
-    # docs = retrieve(query)
-    docs = ["get reference from db"]
+def llm_answer_agent_func(local_input):
+    query = local_input["query"]
+    docs = local_input["docs"]
+    prompt = f"""
+your are question answer.
+
+User query: 
+{query}
+
+With the context: 
+{docs}
+
+Only return JSON:
+{{
+    "answer": "here is the answer",
+    "citations": ["docs1"]
+}}
+"""
+    return call_llm_json(prompt)
+
+
+def verifier_agent_func(local_input):
+    answer = local_input["answer"]
+    citations = local_input["citations"]
+
+    supported = bool(answer) and len(citations) > 0
+
+    return {
+        "verification_result": supported,
+        "reason": "Demo verifier, answer must exist and citations must not be empty.",
+    }
+
+
+def retriever_agent_func(local_input):
+    query = local_input["query"]
+
+    docs = [
+        {"id": "doc_1", "text": "RAG means retrieval augmented generation."},
+        {
+            "id": "doc_2",
+            "text": "In RAG, the system retrieves relevant documents before generating an answer.",
+        },
+        {
+            "id": "doc_3",
+            "text": "RAG can be implemented as retrieve, generate, and verify steps.",
+        },
+    ]
 
     return {"docs": docs}
 
@@ -100,7 +147,7 @@ classifier_agent = Agent(
     role="Classify the user query",
     input_keys={"query"},
     output_schema={"task_type": str, "classification_reason": str},
-    allowed_update_keys={"task_type", "reason_summary"},
+    allowed_update_keys={"task_type", "classification_reason"},
     run_func=llm_classifier_agent_func,
 )
 
@@ -113,11 +160,37 @@ retriever_agent = Agent(
     run_func=retriever_agent_func,
 )
 
+answer_agent = Agent(
+    name="answer",
+    role="Generate an answer based on retrieved docs",
+    input_keys={"query", "docs"},
+    output_schema={"answer": str, "citations": list},
+    allowed_update_keys={"answer", "citations"},
+    run_func=llm_answer_agent_func,
+)
 
-update = classifier_agent.run(state)
-state = apply_update( state=state, update=update, agent=classifier_agent)
-print(state)
+verifier_agent = Agent(
+    name="verifier",
+    role="Verify whether the answer is supported by documents",
+    input_keys={"query", "docs", "answer", "citations"},
+    output_schema={"verification_result": bool, "reason": str},
+    allowed_update_keys={"verification_result"},
+    run_func=verifier_agent_func,
+)
 
-update = retriever_agent.run(state)
-state = apply_update(state=state, update=update, agent=retriever_agent)
-print(state)
+if __name__ == "__main__":
+    update = classifier_agent.run(state)
+    state = apply_update(state=state, update=update, agent=classifier_agent)
+    print(state)
+
+    update = retriever_agent.run(state)
+    state = apply_update(state=state, update=update, agent=retriever_agent)
+    print(state)
+
+    update = answer_agent.run(state)
+    state = apply_update(state=state, update=update, agent=answer_agent)
+    print(state)
+
+    update = verifier_agent.run(state)
+    state = apply_update(state=state, update=update, agent=verifier_agent)
+    print(state)
