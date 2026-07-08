@@ -8,19 +8,20 @@ class RagState(TypedDict):
     current_query: str
 
     # Intermediate fields
-    classification_reason: str
-    task_type: str
+    classification_reason: Optional[str]
+    task_type: Optional[str]
     plan: Optional[str]
     docs: List[str]
     reranked_docs: List[dict]
-    answer: str
-    verification_result: Optional[dict]
+    answer: Optional[str]
+    verification_result: Optional[bool]
+    verification_reason: Optional[str]
 
     # Process Control for Orchestrator
     next_agent: str
     step: int
     max_steps: int
-    exit_reason: str
+    exit_reason: Optional[str]
     verified: bool
 
     # Debug
@@ -63,9 +64,9 @@ class Agent:
 
     def run(self, state):
         # limit input
-        local_inputs = {key: state.get(key) for key in self.input_keys}
+        local_input = {key: state.get(key) for key in self.input_keys}
 
-        output = self.run_func(local_inputs)
+        output = self.run_func(local_input)
 
         # limit output
         self._validate_output(output, self.output_schema)
@@ -158,7 +159,7 @@ def verifier_agent_func(local_input):
 
     return {
         "verification_result": supported,
-        "reason": "Demo verifier, answer must exist and citations must not be empty.",
+        "verification_reason": "Demo verifier, answer must exist and citations must not be empty.",
     }
 
 
@@ -211,7 +212,7 @@ verifier_agent = Agent(
     name="verifier",
     role="Verify whether the answer is supported by documents",
     input_keys={"original_query", "docs", "answer", "citations"},
-    output_schema={"verification_result": bool, "reason": str},
+    output_schema={"verification_result": bool, "verification_reason": str},
     allowed_update_keys={"verification_result"},
     run_func=verifier_agent_func,
 )
