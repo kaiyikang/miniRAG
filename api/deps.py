@@ -1,5 +1,5 @@
 from minirag.config import get_settings
-from minirag.rag import RAGPipeline
+from minirag.rag import RAGPipeline, RAGEvent
 from minirag.embedding import OpenRouterEmbeddingEngine
 from minirag.vector_store import ChromaVectorStore
 from minirag.llm_engine import OpenRouterEngine

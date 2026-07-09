@@ -6,7 +6,7 @@ import json
 import threading
 import uvicorn
 
-from .deps import create_pipeline
+from .deps import create_pipeline, RAGEvent
 
 app = FastAPI()
 
@@ -28,6 +28,8 @@ async def query_stream(question: str):
     def run():
         try:
             pipeline.query(question)
+        except Exception as e:
+            q.put(RAGEvent(event_id="unknown", step="error", data={"reason": str(e)}))
         finally:
             pipeline.clear_history()
             # 如果有其他需要清的状态，在这里加
@@ -36,7 +38,11 @@ async def query_stream(question: str):
 
     def event_stream():
         while True:
-            event = q.get()
+            try:
+                event = q.get(timeout=60)
+            except queue.Empty:
+                yield f"data: {json.dumps({'step': 'error', 'reason': 'timeout'})}\n\n"
+                break
             payload = {
                 "event_id": event.event_id,
                 "step": event.step,
