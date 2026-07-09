@@ -1,5 +1,14 @@
 from utils import call_llm_json
-from .state import create_initial_state
+from state import create_initial_state
+from tool import Tool, simple_search_tool
+
+TOOLS = {
+    "simple_search": Tool(
+        name="simple_search",
+        description="Search relevant documents from the local corpus.",
+        run_func=simple_search_tool,
+    )
+}
 
 
 class Agent:
@@ -118,17 +127,7 @@ def verifier_agent_func(local_input):
 def retriever_agent_func(local_input):
     query = local_input["original_query"]
 
-    docs = [
-        {"id": "doc_1", "text": "RAG means retrieval augmented generation."},
-        {
-            "id": "doc_2",
-            "text": "In RAG, the system retrieves relevant documents before generating an answer.",
-        },
-        {
-            "id": "doc_3",
-            "text": "RAG can be implemented as retrieve, generate, and verify steps.",
-        },
-    ]
+    docs = TOOLS["simple_search"].run(query=query, top_k=2)
 
     return {"docs": docs}
 
@@ -172,18 +171,18 @@ verifier_agent = Agent(
 if __name__ == "__main__":
     state = create_initial_state()
 
-    update = classifier_agent.run(state)
-    state = apply_update(state=state, update=update, agent=classifier_agent)
-    print(state)
+    # update = classifier_agent.run(state)
+    # state = apply_update(state=state, update=update, agent=classifier_agent)
+    # print(state)
 
     update = retriever_agent.run(state)
     state = apply_update(state=state, update=update, agent=retriever_agent)
     print(state)
 
-    update = answer_agent.run(state)
-    state = apply_update(state=state, update=update, agent=answer_agent)
-    print(state)
+    # update = answer_agent.run(state)
+    # state = apply_update(state=state, update=update, agent=answer_agent)
+    # print(state)
 
-    update = verifier_agent.run(state)
-    state = apply_update(state=state, update=update, agent=verifier_agent)
-    print(state)
+    # update = verifier_agent.run(state)
+    # state = apply_update(state=state, update=update, agent=verifier_agent)
+    # print(state)

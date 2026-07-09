@@ -28,7 +28,7 @@ class RagState(TypedDict):
     query_history: List[str]
 
 
-def create_initial_state(query="explain what is the multi-agent RAG") -> RagState:
+def create_initial_state(query="explain what is the multi agent RAG") -> RagState:
     return {
         "original_query": query,
         "current_query": None,
