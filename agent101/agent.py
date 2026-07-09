@@ -5,7 +5,7 @@ from typing import TypedDict, List, Optional, Any
 class RagState(TypedDict):
     # Input from user
     original_query: str
-    current_query: str
+    current_query: Optional[str]
 
     # Intermediate fields
     classification_reason: Optional[str]
@@ -29,10 +29,10 @@ class RagState(TypedDict):
     query_history: List[str]
 
 
-def create_initial_state(query="从代码角度解释 multi-agent RAG") -> RagState:
+def create_initial_state(query="explain what is the multi-agent RAG") -> RagState:
     return {
         "original_query": query,
-        "current_query": "what is multi-agent RAG implementation loop",
+        "current_query": None,
         "classification_reason": None,
         "task_type": None,
         "plan": None,
@@ -138,10 +138,10 @@ def llm_answer_agent_func(local_input):
     prompt = f"""
 your are question answer.
 
-User query: 
+User query:
 {query}
 
-With the context: 
+With the context:
 {docs}
 
 Only return JSON:
