@@ -1,5 +1,5 @@
 from utils import call_llm_json
-from state import create_initial_state
+from state import create_initial_state, RagState
 from tool import Tool, simple_search_tool
 
 TOOLS = {
@@ -43,21 +43,6 @@ class Agent:
                     f"Key {key} should be {expected_type}, got {type(output[key])}"
                 )
         return True
-
-
-def apply_update(state, update, agent: Agent):
-    safe_update = {}
-
-    for key, value in update.items():
-        if key in agent.allowed_update_keys:
-            safe_update[key] = value
-        else:
-            raise ValueError(
-                f"Agent '{agent.name}' tried to update " f"forbidden keys: {key}"
-            )
-
-    state.update(safe_update)
-    return state
 
 
 def classify_agent_func(state):
@@ -280,36 +265,62 @@ verifier_agent = Agent(
 )
 
 
+def apply_update(state, updated_state, agent: Agent):
+    safe_update = {}
+
+    for key, value in updated_state.items():
+        if key in agent.allowed_update_keys:
+            safe_update[key] = value
+        else:
+            raise ValueError(
+                f"Agent '{agent.name}' tried to update " f"forbidden keys: {key}"
+            )
+
+    state.update(safe_update)
+    return state
+
+
+def run_agent_once(state: RagState, agent_name: str) -> RagState:
+    agent = AGENTS[agent_name]
+
+    updated_state = agent.run(state)
+
+    state = apply_update(state=state, updated_state=updated_state, agent=agent)
+
+    state["trace"].append(
+        {
+            "step": state["step"],
+            "agent": agent_name,
+            "output_keys": list(updated_state.keys()),
+        }
+    )
+
+    print(state["trace"])
+
+    state["step"] += 1
+    return state
+
+
+AGENTS = {
+    "classifier": classifier_agent,
+    "planner": planner_agent,
+    "query_rewriter": rewrite_query_agent,
+    "retriever": retriever_agent,
+    "reranker": reranker_agent,
+    "answer": answer_agent,
+    "verifier": verifier_agent,
+}
+
 if __name__ == "__main__":
     state = create_initial_state()
 
-    update = classifier_agent.run(state)
-    state = apply_update(state=state, update=update, agent=classifier_agent)
-    print(state["plan"])
-    print(state["task_type"])
-    print(state["classification_reason"])
-
-    update = planner_agent.run(state)
-    state = apply_update(state=state, update=update, agent=planner_agent)
-    print(state["plan"])
-
-    update = rewrite_query_agent.run(state)
-    state = apply_update(state=state, update=update, agent=rewrite_query_agent)
-    print(state["current_query"])
-
-    update = retriever_agent.run(state)
-    state = apply_update(state=state, update=update, agent=retriever_agent)
-    print(state["docs"])
-    print(state["reranked_docs"])
-
-    update = reranker_agent.run(state)
-    state = apply_update(state=state, update=update, agent=reranker_agent)
-    print(state["reranked_docs"])
-
-    # update = answer_agent.run(state)
-    # state = apply_update(state=state, update=update, agent=answer_agent)
-    # print(state)
-
-    update = verifier_agent.run(state)
-    state = apply_update(state=state, update=update, agent=verifier_agent)
-    print(state)
+    state = run_agent_once(state, "classifier")
+    state = run_agent_once(state, "planner")
+    state = run_agent_once(state, "query_rewriter")
+    state = run_agent_once(state, "retriever")
+    state = run_agent_once(state, "reranker")
+    state = run_agent_once(state, "answer")
+    state = run_agent_once(state, "verifier")
+    print(state["answer"])
+    print(state["verification_result"])
+    print(state["verified"])
