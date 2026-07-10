@@ -301,6 +301,22 @@ def run_agent_once(state: RagState, agent_name: str) -> RagState:
     return state
 
 
+END = "__end__"
+
+
+def route_next(current_agent: str, state: dict) -> str:
+    routes = {
+        "classifier": "planner",
+        "planner": "query_rewriter",
+        "query_rewriter": "retriever",
+        "retriever": "reranker",
+        "reranker": "answer",
+        "answer": "verifier",
+        "verifier": END,
+    }
+    return routes[current_agent]
+
+
 AGENTS = {
     "classifier": classifier_agent,
     "planner": planner_agent,
@@ -313,14 +329,15 @@ AGENTS = {
 
 if __name__ == "__main__":
     state = create_initial_state()
-
-    state = run_agent_once(state, "classifier")
-    state = run_agent_once(state, "planner")
-    state = run_agent_once(state, "query_rewriter")
-    state = run_agent_once(state, "retriever")
-    state = run_agent_once(state, "reranker")
-    state = run_agent_once(state, "answer")
-    state = run_agent_once(state, "verifier")
-    print(state["answer"])
-    print(state["verification_result"])
-    print(state["verified"])
+    next_agent = route_next("retriever", state)
+    print(next_agent)
+    # state = run_agent_once(state, "classifier")
+    # state = run_agent_once(state, "planner")
+    # state = run_agent_once(state, "query_rewriter")
+    # state = run_agent_once(state, "retriever")
+    # state = run_agent_once(state, "reranker")
+    # state = run_agent_once(state, "answer")
+    # state = run_agent_once(state, "verifier")
+    # print(state["answer"])
+    # print(state["verification_result"])
+    # print(state["verified"])
