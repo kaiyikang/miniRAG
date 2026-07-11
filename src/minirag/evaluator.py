@@ -26,6 +26,7 @@ class EvalResult(NamedTuple):
     answer_f1: float
     context_relevancy: float | None
     answer_relevancy: float | None
+    faithfulness: float | None
 
 
 class Evaluator:
@@ -61,11 +62,18 @@ class Evaluator:
             sample.question, answer.retrieved_chunks, self._pipeline.get_llm()
         )
 
-        answer_relevancy = cal_answer_relevancy(
+        answer_relevancy = cal_question_answer_relevancy(
             sample.question,
             answer.content,
             self._pipeline.get_llm(),
             self._pipeline.get_embed(),
+        )
+
+        faithfulness = cal_context_answer_faithfulness(
+            query=sample.question,
+            context=answer.retrieved_chunks,
+            answer=answer.content,
+            llm=self._pipeline.get_llm(),
         )
 
         return EvalResult(
@@ -78,6 +86,7 @@ class Evaluator:
             answer_f1=answer_f1,
             context_relevancy=context_relevancy,
             answer_relevancy=answer_relevancy,
+            faithfulness=faithfulness,
         )
 
     def evaluate(self):
@@ -87,6 +96,8 @@ class Evaluator:
         n_context_relevancy = 0
         avg_answer_relevancy = 0.0
         n_answer_relevancy = 0
+        avg_faithfulness = 0.0
+        n_faithfulness = 0
 
         total = 0
         lines = self._dataset.read_text(encoding="utf-8").splitlines()
@@ -114,9 +125,15 @@ class Evaluator:
                         ) / (n_answer_relevancy + 1)
                         n_answer_relevancy += 1
 
+                    if result.faithfulness is not None:
+                        avg_faithfulness += (result.faithfulness - avg_faithfulness) / (
+                            n_faithfulness + 1
+                        )
+                        n_faithfulness += 1
+
                     total += 1
                     print(
-                        f"n = {n}, avg_recall={avg_recall}, avg_f1={avg_f1}, avg_context_relevancy={avg_context_relevancy}"
+                        f"n = {n}, avg_recall={avg_recall}, avg_f1={avg_f1}, avg_context_relevancy={avg_context_relevancy}, avg_n_faithfulness={avg_faithfulness}"
                     )
                 except Exception:
                     print(f"error on sample {n}:")
@@ -134,6 +151,8 @@ class Evaluator:
                         "n_context_relevancy": n_context_relevancy,
                         "avg_answer_relevancy": avg_answer_relevancy,
                         "n_answer_relevancy": n_answer_relevancy,
+                        "avg_faithfulness": avg_faithfulness,
+                        "n_faithfulness": n_faithfulness,
                         "top_k": self._recall_top_k,
                     },
                     ensure_ascii=False,
@@ -196,11 +215,11 @@ You are a RAG system evaluator. Please determine which of the following numbered
             context_relevancy_prompt.format(question=question, sentences=sentences_str)
         )["content"]
 
-        results = re.search(r"\[.*\]", content, re.DOTALL)
+        results = _extract_json_array(content)
         if not results:
             raise ValueError("results has no content")
 
-        results = json.loads(results.group())
+        results = json.loads(results)
 
         if not isinstance(results, list):
             raise ValueError("results must be a list.")
@@ -217,7 +236,7 @@ You are a RAG system evaluator. Please determine which of the following numbered
     return _retry_until(fn=fn)
 
 
-def cal_answer_relevancy(
+def cal_question_answer_relevancy(
     question: str,
     answer: str,
     llm: InferenceEngine,
@@ -259,11 +278,11 @@ def cal_answer_relevancy(
             reverse_inference_prompt.format(n_questions=n_questions, answer=answer)
         )["content"]
 
-        reversed_questions = re.search(r"\[.*\]", content, re.DOTALL)
+        reversed_questions = _extract_json_array(content)
         if not reversed_questions:
             raise ValueError("reversed questions has no content")
 
-        reversed_questions = json.loads(reversed_questions.group())
+        reversed_questions = json.loads(reversed_questions)
         if not isinstance(reversed_questions, list) or not all(
             isinstance(i, str) for i in reversed_questions
         ):
@@ -281,6 +300,116 @@ def cal_answer_relevancy(
     return sum(
         [_cosine_similarity(question_embed, q) for q in reversed_questions_embeds]
     ) / len(reversed_questions_embeds)
+
+
+def cal_context_answer_faithfulness(
+    query: str,
+    context: list[str],
+    answer: str,
+    llm: InferenceEngine,
+) -> float | None:
+
+    def _supported(v) -> bool:
+        return str(v).strip() in {"1", "true", "yes"}
+
+    claims = decompose_answer(query, answer, llm)
+    if not claims:
+        return None
+    verified_claims = verify_context_answer(claims, context, llm)
+    if not verified_claims:
+        return None
+    num_verified_claims = len(
+        [1 for r in verified_claims if _supported(r.get("verdict"))]
+    )
+    num_claims = len(claims)
+    return num_verified_claims / num_claims
+
+
+def decompose_answer(
+    query: str,
+    answer: str,
+    llm: InferenceEngine,
+) -> list[str] | None:
+    prompt = """
+Break the following answer into a set of standalone statements (claims).
+Rules:
+- Each claim states exactly one fact
+- Resolve pronouns (he/it/this) to the actual entity, so each claim is understandable on its own
+- Only extract facts; ignore filler and pleasantries
+- Output a JSON array: ["claim1", "claim2", ...]
+
+Query: {query}
+Answer: {answer}
+"""
+
+    def fn():
+        content = llm.generate(prompt.format(query=query, answer=answer))["content"]
+        content = _extract_json_array(content)
+        if not content:
+            raise ValueError("decomposed answer has no content")
+
+        content = json.loads(content)
+
+        if not isinstance(content, list) or not all(
+            isinstance(item, str) for item in content
+        ):
+            raise ValueError("content cannot be phrased.")
+
+        return content
+
+    claims = _retry_until(fn)
+
+    if not claims:
+        return None
+
+    return claims
+
+
+def verify_context_answer(
+    claims: list[str], context: list[str], llm: InferenceEngine
+) -> list[dict] | None:
+    prompt = """
+Given the context, decide whether each statement can be inferred from it.
+- Semantic support is enough; exact wording is not required
+- If the context doesn't mention it or contradicts it, verdict 0; if it can be inferred, verdict 1
+- Output a JSON array in the same order as the input: [{{"claim": "...", "verdict": 0 or 1}}]
+
+Context:
+{context}
+
+Statements:
+{statements}
+"""
+
+    full_context = "\n\n".join(context)
+    statements = "\n".join(
+        [f"{idx}. {statement}" for idx, statement in enumerate(claims)]
+    )
+
+    def fn():
+
+        content = llm.generate(
+            prompt.format(context=full_context, statements=statements)
+        )["content"]
+        content = _extract_json_array(content)
+        if not content:
+            raise ValueError("The result of the claim has no content")
+
+        content = json.loads(content)
+
+        if not isinstance(content, list) or not all(
+            isinstance(item, dict) for item in content
+        ):
+            raise ValueError("The result of the statement cannot be phrased.")
+
+        return content
+
+    verified_claims = _retry_until(fn)
+
+    if not verified_claims:
+        return None
+
+    return verified_claims
 
 
 def _is_junk(sent: str) -> bool:
@@ -313,6 +442,12 @@ def _retry_until(
     for _ in range(max_attempts):
         try:
             return fn()
-        except exceptions:
+        except exceptions as e:
+            print(repr(e))
             continue
     return None
+
+
+def _extract_json_array(content: str):
+    m = re.search(r"\[.*\]", content, re.DOTALL)
+    return m.group() if m else None

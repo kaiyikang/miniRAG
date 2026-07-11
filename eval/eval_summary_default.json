@@ -1,9 +1,12 @@
 {
-  "retrieval_recall@5": 0.611111111111111,
-  "answer_f1": 0.3290665106740095,
+  "retrieval_recall@5": 0.6388888888888887,
+  "answer_f1": 0.30046448227101324,
   "n_samples": 36,
-  "avg_context_relevancy": 0.15122370858117923,
+  "avg_context_relevancy": 0.1306599190111398,
   "n_context_relevancy": 36,
+  "avg_answer_relevancy": 0.43915709506082407,
   "n_answer_relevancy": 36,
+  "avg_faithfulness": 0.9124338624338625,
+  "n_faithfulness": 36,
   "top_k": 5
 }
