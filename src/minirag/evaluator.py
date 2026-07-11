@@ -3,9 +3,11 @@ from minirag.llm_engine import InferenceEngine, InferenceError
 from minirag.embedding import EmbeddingEngine
 from llama_index.core.node_parser.text.utils import split_by_sentence_tokenizer
 from typing import NamedTuple
+from datetime import datetime
 import re
 from pathlib import Path
 import json
+import subprocess
 import traceback
 import math
 
@@ -37,6 +39,7 @@ class Evaluator:
         dataset_dir: str,
         suffix: str = "default",
         recall_top_k: int = 5,
+        params: dict | None = None,
     ):
         self._pipeline = pipeline
         Path(dataset_dir).mkdir(parents=True, exist_ok=True)
@@ -44,9 +47,14 @@ class Evaluator:
         if not self._dataset.exists():
             raise ValueError("Cannot find the qa dataset!")
 
-        self._eval_results = Path(dataset_dir) / f"eval_results_{suffix}.jsonl"
-        self._eval_summary = Path(dataset_dir) / f"eval_summary_{suffix}.json"
+        # One directory per run: eval/runs/<timestamp>_<suffix>/
+        run_id = f"{datetime.now():%Y-%m-%d_%H%M%S}_{suffix}"
+        self._run_dir = Path(dataset_dir) / "runs" / run_id
+        self._run_dir.mkdir(parents=True)  # no exist_ok: a name clash should fail loudly
+        self._eval_results = self._run_dir / "results.jsonl"
+        self._eval_summary = self._run_dir / "summary.json"
         self._recall_top_k = recall_top_k
+        self._params = params or {}
 
     def _evaluate_sample(self, sample: EvalSample, top_k: int):
 
@@ -140,25 +148,27 @@ class Evaluator:
                     traceback.print_exc()
                     continue
 
+        commit, dirty = _git_info()
+        payload = {
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "git_commit": commit,
+            "git_dirty": dirty,
+            "params": self._params,
+            "metrics": {
+                "retrieval_recall@5": avg_recall,
+                "answer_f1": avg_f1,
+                "n_samples": total,
+                "avg_context_relevancy": avg_context_relevancy,
+                "n_context_relevancy": n_context_relevancy,
+                "avg_answer_relevancy": avg_answer_relevancy,
+                "n_answer_relevancy": n_answer_relevancy,
+                "avg_faithfulness": avg_faithfulness,
+                "n_faithfulness": n_faithfulness,
+                "top_k": self._recall_top_k,
+            },
+        }
         with open(self._eval_summary, "w", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "retrieval_recall@5": avg_recall,
-                        "answer_f1": avg_f1,
-                        "n_samples": total,
-                        "avg_context_relevancy": avg_context_relevancy,
-                        "n_context_relevancy": n_context_relevancy,
-                        "avg_answer_relevancy": avg_answer_relevancy,
-                        "n_answer_relevancy": n_answer_relevancy,
-                        "avg_faithfulness": avg_faithfulness,
-                        "n_faithfulness": n_faithfulness,
-                        "top_k": self._recall_top_k,
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-            )
+            f.write(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def cal_retrieval_recall(
@@ -451,3 +461,21 @@ def _retry_until(
 def _extract_json_array(content: str):
     m = re.search(r"\[.*\]", content, re.DOTALL)
     return m.group() if m else None
+
+
+def _git_info() -> tuple[str | None, bool | None]:
+    """Return (short commit, dirty flag), or (None, None) if git is unavailable."""
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        dirty = bool(
+            subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip()
+        )
+        return commit, dirty
+    except Exception:
+        return None, None
