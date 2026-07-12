@@ -301,20 +301,13 @@ def run_agent_once(state: RagState, agent_name: str) -> RagState:
     return state
 
 
-END = "__end__"
+def compute_verified(state: dict) -> bool:
+    result = state.get("verification_result")
 
+    if result is None:
+        return False
 
-def route_next(current_agent: str, state: dict) -> str:
-    routes = {
-        "classifier": "planner",
-        "planner": "query_rewriter",
-        "query_rewriter": "retriever",
-        "retriever": "reranker",
-        "reranker": "answer",
-        "answer": "verifier",
-        "verifier": END,
-    }
-    return routes[current_agent]
+    return bool(result)
 
 
 AGENTS = {

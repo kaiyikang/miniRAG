@@ -1,5 +1,7 @@
 from typing import TypedDict, List, Optional, Any
 
+END = "__end__"
+
 
 class RagState(TypedDict):
     # Input from user
