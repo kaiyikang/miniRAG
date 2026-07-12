@@ -46,22 +46,6 @@ class Agent:
         return True
 
 
-def classify_agent_func(state):
-    query = state["original_query"]
-
-    if "code" in query or "implementation" in query:
-        task_type = "implementation"
-    elif "what is" in query or "explanation" in query:
-        task_type = "conceptual"
-    else:
-        task_type = "general"
-
-    return {
-        "task_type": task_type,
-        "classification_reason": "Classified by simple keyword rules.",
-    }
-
-
 def llm_classifier_agent_func(local_input):
     prompt = f"""
 User query: {local_input["original_query"]}
@@ -173,7 +157,7 @@ answer_agent = Agent(
 
 
 def retriever_agent_func(local_input):
-    query = local_input["original_query"]
+    query = local_input.get("current_query") or local_input.get("original_query")
 
     docs = TOOLS["simple_search"].run(query=query, top_k=2)
 
@@ -183,7 +167,7 @@ def retriever_agent_func(local_input):
 retriever_agent = Agent(
     name="retriever",
     role="Retrieve relevant documents",
-    input_keys={"original_query"},
+    input_keys={"original_query", "current_query"},
     output_schema={"docs": list},
     allowed_update_keys={"docs"},
     run_func=retriever_agent_func,
@@ -281,27 +265,6 @@ def apply_update(state, updated_state, agent: Agent):
     return state
 
 
-def run_agent_once(state: RagState, agent_name: str) -> RagState:
-    agent = AGENTS[agent_name]
-
-    updated_state = agent.run(state)
-
-    state = apply_update(state=state, updated_state=updated_state, agent=agent)
-
-    state["trace"].append(
-        {
-            "step": state["step"],
-            "agent": agent_name,
-            "output_keys": list(updated_state.keys()),
-        }
-    )
-
-    print(state["trace"])
-
-    state["step"] += 1
-    return state
-
-
 def run_agent(state: RagState) -> RagState:
     while state["next_agent"] != END:
         # Get the agent
@@ -340,7 +303,7 @@ def run_agent(state: RagState) -> RagState:
         # Apply the decision
         state["next_agent"] = decision["next_agent"]
 
-        if state["exit_reason"] is not None:
+        if decision["exit_reason"] is not None:
             state["exit_reason"] = decision["exit_reason"]
 
     return state

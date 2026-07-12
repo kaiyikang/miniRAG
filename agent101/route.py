@@ -20,7 +20,7 @@ def _retrieval_exhausted(state):
     return state["retrieval_attempts"] >= state["max_retrieval_attempts"]
 
 
-def route_next(current_agent: str, state: dict) -> str:
+def route_next(current_agent: str, state: dict) -> RouteDecision:
     # Global guards
     if state["step"] >= state["max_steps"]:
         return _stop("max_steps_reached")
@@ -45,7 +45,7 @@ def route_next(current_agent: str, state: dict) -> str:
         if not _retrieval_exhausted(state):
             return _go_to("query_rewriter", "no_documents_found")
 
-        return "answer"
+        return _go_to("answer", "retrieval_exhausted")
 
     if current_agent == "reranker":
         if state["reranked_docs"]:

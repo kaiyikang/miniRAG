@@ -47,7 +47,7 @@ def create_initial_state(query="explain what is the multi agent RAG") -> RagStat
         "verification_reason": None,
         "next_agent": "classifier",
         "step": 0,
-        "max_steps": 6,
+        "max_steps": 10,
         "retrieval_attempts": 0,
         "max_retrieval_attempts": 3,
         "exit_reason": None,
