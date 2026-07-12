@@ -4,7 +4,12 @@ from typing import Literal
 END = "__end__"
 
 
-class RagState(TypedDict):
+class VerificationState(TypedDict):
+    verification_result: Optional[bool]
+    verification_reason: Optional[str]
+
+
+class RagState(VerificationState):
     # Input from user
     original_query: str
     current_query: Optional[str]
@@ -16,8 +21,6 @@ class RagState(TypedDict):
     docs: List[str]
     reranked_docs: List[dict]
     answer: Optional[str]
-    verification_result: Optional[bool]
-    verification_reason: Optional[str]
 
     # Process Control for Orchestrator
     next_agent: str
