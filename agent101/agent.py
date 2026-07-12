@@ -250,7 +250,7 @@ verifier_agent = Agent(
 )
 
 
-def apply_update(state, updated_state, agent: Agent):
+def apply_agent_update(state, updated_state, agent: Agent):
     safe_update = {}
 
     for key, value in updated_state.items():
@@ -265,28 +265,35 @@ def apply_update(state, updated_state, agent: Agent):
     return state
 
 
+def apply_system_update(state, agent: Agent):
+
+    state["step"] += 1
+
+    if agent.name == "retriever":
+        state["retrieval_attempts"] += 1
+
+    if agent.name == "verifier":
+        state["verified"] = compute_verified(state)
+
+    return state
+
+
 def run_agent(state: RagState) -> RagState:
-    while state["next_agent"] != END:
+
+    current_agent = "classifier"
+
+    while current_agent != END:
         # Get the agent
-        current_agent = state["next_agent"]
 
         if current_agent not in AGENTS:
             raise ValueError("Agent is not registered: {current_agent}")
 
         agent = AGENTS[current_agent]
 
-        # Update the state
         updated_state = agent.run(state)
-        state = apply_update(state, updated_state, agent)
 
-        # Update the system state
-        state["step"] += 1
-
-        if current_agent == "retriever":
-            state["retrieval_attempts"] += 1
-
-        if current_agent == "verifier":
-            state["verified"] = compute_verified(state)
+        state = apply_agent_update(state, updated_state, agent)
+        state = apply_system_update(state, agent)
 
         # Get the next routed agent
         decision = route_next(current_agent, state)
@@ -301,7 +308,7 @@ def run_agent(state: RagState) -> RagState:
         )
 
         # Apply the decision
-        state["next_agent"] = decision["next_agent"]
+        current_agent = decision["next_agent"]
 
         if decision["exit_reason"] is not None:
             state["exit_reason"] = decision["exit_reason"]

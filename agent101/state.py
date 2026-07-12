@@ -23,8 +23,7 @@ class RagState(VerificationState):
     answer: Optional[str]
 
     # Process Control for Orchestrator
-    next_agent: str
-    step: int
+    step: int  # already done
     max_steps: int
     retrieval_attempts: int
     max_retrieval_attempts: int
@@ -48,7 +47,6 @@ def create_initial_state(query="explain what is the multi agent RAG") -> RagStat
         "answer": None,
         "verification_result": None,
         "verification_reason": None,
-        "next_agent": "classifier",
         "step": 0,
         "max_steps": 10,
         "retrieval_attempts": 0,

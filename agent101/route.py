@@ -3,7 +3,7 @@ from state import END
 
 
 class RouteDecision(TypedDict):
-    next_agent: str
+    next_agent: Optional[str]
     reason: str
     exit_reason: Optional[str]
 
