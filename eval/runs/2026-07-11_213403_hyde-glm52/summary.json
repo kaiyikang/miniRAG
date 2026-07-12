@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-07-11T22:13:14",
+  "git_commit": "2afc08e",
+  "git_dirty": true,
+  "params": {
+    "model": "deepseek/deepseek-v4-flash",
+    "embed_model": "google/gemini-embedding-2",
+    "chunk_size": 512,
+    "top_k": 5,
+    "query_transformer": "HyDE",
+    "dataset": "qa_dataset10.jsonl"
+  },
+  "metrics": {
+    "retrieval_recall@5": 0.6388888888888887,
+    "answer_f1": 0.3134088907976571,
+    "n_samples": 36,
+    "avg_context_relevancy": 0.13939007315790283,
+    "n_context_relevancy": 36,
+    "avg_answer_relevancy": 0.5000840145448596,
+    "n_answer_relevancy": 36,
+    "avg_faithfulness": 0.9406122448979592,
+    "n_faithfulness": 35,
+    "top_k": 5
+  }
+}
