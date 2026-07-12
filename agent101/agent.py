@@ -319,6 +319,9 @@ def run_agent(state: RagState) -> RagState:
         # Update the system state
         state["step"] += 1
 
+        if current_agent == "retriever":
+            state["retrieval_attempts"] += 1
+
         if current_agent == "verifier":
             state["verified"] = compute_verified(state)
 
@@ -365,13 +368,8 @@ AGENTS = {
 if __name__ == "__main__":
     state = create_initial_state()
 
-    state = run_agent_once(state, "classifier")
-    state = run_agent_once(state, "planner")
-    state = run_agent_once(state, "query_rewriter")
-    state = run_agent_once(state, "retriever")
-    state = run_agent_once(state, "reranker")
-    state = run_agent_once(state, "answer")
-    state = run_agent_once(state, "verifier")
+    state = run_agent(state)
     print(state["answer"])
     print(state["verification_result"])
     print(state["verified"])
+    print(state)

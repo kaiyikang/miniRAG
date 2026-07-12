@@ -1,4 +1,5 @@
 from typing import TypedDict, List, Optional, Any
+from typing import Literal
 
 END = "__end__"
 
@@ -22,6 +23,8 @@ class RagState(TypedDict):
     next_agent: str
     step: int
     max_steps: int
+    retrieval_attempts: int
+    max_retrieval_attempts: int
     exit_reason: Optional[str]
     verified: bool
 
@@ -45,6 +48,8 @@ def create_initial_state(query="explain what is the multi agent RAG") -> RagStat
         "next_agent": "classifier",
         "step": 0,
         "max_steps": 6,
+        "retrieval_attempts": 0,
+        "max_retrieval_attempts": 3,
         "exit_reason": None,
         "verified": False,
         # Debug
