@@ -1,6 +1,7 @@
 from utils import call_llm_json
-from state import create_initial_state, RagState
+from state import create_initial_state, RagState, END
 from tool import Tool, simple_search_tool
+from route import route_next
 
 TOOLS = {
     "simple_search": Tool(
@@ -298,6 +299,47 @@ def run_agent_once(state: RagState, agent_name: str) -> RagState:
     print(state["trace"])
 
     state["step"] += 1
+    return state
+
+
+def run_agent(state: RagState) -> RagState:
+    while state["next_agent"] != END:
+        # Get the agent
+        current_agent = state["next_agent"]
+
+        if current_agent not in AGENTS:
+            raise ValueError("Agent is not registered: {current_agent}")
+
+        agent = AGENTS[current_agent]
+
+        # Update the state
+        updated_state = agent.run(state)
+        state = apply_update(state, updated_state, agent)
+
+        # Update the system state
+        state["step"] += 1
+
+        if current_agent == "verifier":
+            state["verified"] = compute_verified(state)
+
+        # Get the next routed agent
+        decision = route_next(current_agent, state)
+
+        state["trace"].append(
+            {
+                "step": state["step"],
+                "agent": current_agent,
+                "next_agent": decision["next_agent"],
+                "route_reason": decision["reason"],
+            }
+        )
+
+        # Apply the decision
+        state["next_agent"] = decision["next_agent"]
+
+        if state["exit_reason"] is not None:
+            state["exit_reason"] = decision["exit_reason"]
+
     return state
 
 
