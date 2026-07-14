@@ -5,6 +5,8 @@ END = "__end__"
 
 
 class VerificationState(TypedDict):
+    verification_attempts: int
+    max_verification_attempts: int
     verification_result: Optional[bool]
     verification_reason: Optional[str]
 
@@ -45,10 +47,12 @@ def create_initial_state(query="explain what is the multi agent RAG") -> RagStat
         "docs": [],
         "reranked_docs": [],
         "answer": None,
+        "verification_attempts": 0,
+        "max_verification_attempts": 3,
         "verification_result": None,
         "verification_reason": None,
         "step": 0,
-        "max_steps": 10,
+        "max_steps": 20,
         "retrieval_attempts": 0,
         "max_retrieval_attempts": 3,
         "exit_reason": None,

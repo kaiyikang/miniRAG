@@ -1,6 +1,6 @@
 from utils import call_llm_json
 from state import create_initial_state, RagState, END
-from tool import Tool, simple_search_tool
+from tool import Tool, simple_search_tool, vector_search_tool
 from route import route_next
 
 TOOLS = {
@@ -8,7 +8,12 @@ TOOLS = {
         name="simple_search",
         description="Search relevant documents from the local corpus.",
         run_func=simple_search_tool,
-    )
+    ),
+    "vector_search": Tool(
+        name="vector_search",
+        description="Search relevant documents from the Chroma vector store.",
+        run_func=vector_search_tool,
+    ),
 }
 
 
@@ -103,8 +108,21 @@ planner_agent = Agent(
 
 def rewrite_query_agent_func(local_input: dict) -> dict:
     query = local_input["original_query"]
+    query_history = "\n".join(
+        f"{idx}. {v}" for idx, v in enumerate(local_input["query_history"])
+    )
+    verification_reason = local_input["verification_reason"]
+    reason = (
+        f"The previous attempt failed because: {verification_reason}. Adjust the query to specifically address this gap."
+        if verification_reason
+        else ""
+    )
     prompt = f"""
-You rewrite a user query into a clearer, keyword-rich search query.
+Rewrite into a well-formed, semantically explicit question/statement. Don't repeat the history queries.
+{reason}
+
+History queries:
+{query_history}
 
 User query:
 {query}
@@ -118,9 +136,9 @@ Only return JSON:
 
 
 rewrite_query_agent = Agent(
-    name="rewrite_query",
+    name="query_rewriter",
     role="Rewrite the query for better retrieval",
-    input_keys={"original_query"},
+    input_keys={"original_query", "query_history", "verification_reason"},
     output_schema={"current_query": str},
     allowed_update_keys={"current_query"},
     run_func=rewrite_query_agent_func,
@@ -129,27 +147,52 @@ rewrite_query_agent = Agent(
 
 def llm_answer_agent_func(local_input):
     query = local_input["original_query"]
-    docs = local_input["docs"]
+    last_chance = (
+        local_input["verification_attempts"] >= local_input["max_verification_attempts"]
+    )
+    chunks = local_input["docs"]
+    docs_ids = [chunk["id"] for chunk in chunks]
+    docs_texts = [chunk["text"] for chunk in chunks]
+
+    context = "".join(f"{idx}. {text}\n" for (idx, text) in zip(docs_ids, docs_texts))
+    prompt_last_chance = (
+        "This is the final attempt. If the documents above don't fully support a complete answer, say so explicitly instead of presenting an unverified claim as fact."
+        if last_chance
+        else ""
+    )
+
     prompt = f"""
 User query:
 {query}
 
 With the context:
-{docs}
+{context}
+
+{prompt_last_chance}
 
 Only return JSON:
 {{
     "answer": "here is the answer",
-    "citations": ["docs1"]
+    "citations": ["<id copied from the documents above>"]
 }}
 """
-    return call_llm_json(prompt)
+    answer_and_citations = call_llm_json(prompt)
+    # Verification for true citations
+    answer_and_citations["citations"] = [
+        c for c in answer_and_citations["citations"] if c in docs_ids
+    ]
+    return answer_and_citations
 
 
 answer_agent = Agent(
     name="answer",
     role="Generate an answer based on retrieved docs",
-    input_keys={"original_query", "docs"},
+    input_keys={
+        "original_query",
+        "docs",
+        "verification_attempts",
+        "max_verification_attempts",
+    },
     output_schema={"answer": str, "citations": list},
     allowed_update_keys={"answer", "citations"},
     run_func=llm_answer_agent_func,
@@ -159,7 +202,7 @@ answer_agent = Agent(
 def retriever_agent_func(local_input):
     query = local_input.get("current_query") or local_input.get("original_query")
 
-    docs = TOOLS["simple_search"].run(query=query, top_k=2)
+    docs = TOOLS["vector_search"].run(query=query, top_k=2)
 
     return {"docs": docs}
 
@@ -269,10 +312,14 @@ def apply_system_update(state, agent: Agent):
 
     state["step"] += 1
 
+    if agent.name == "query_rewriter":
+        state["query_history"].append(state["current_query"])
+
     if agent.name == "retriever":
         state["retrieval_attempts"] += 1
 
     if agent.name == "verifier":
+        state["verification_attempts"] += 1
         state["verified"] = compute_verified(state)
 
     return state
@@ -336,7 +383,7 @@ AGENTS = {
 }
 
 if __name__ == "__main__":
-    state = create_initial_state()
+    state = create_initial_state("Explain the Java Exception")
 
     state = run_agent(state)
     print(state["answer"])

@@ -20,6 +20,10 @@ def _retrieval_exhausted(state):
     return state["retrieval_attempts"] >= state["max_retrieval_attempts"]
 
 
+def _verification_exhausted(state):
+    return state["verification_attempts"] >= state["max_verification_attempts"]
+
+
 def route_next(current_agent: str, state: dict) -> RouteDecision:
     # Global guards
     if state["step"] >= state["max_steps"]:
@@ -30,10 +34,7 @@ def route_next(current_agent: str, state: dict) -> RouteDecision:
 
     # Local routes
     if current_agent == "classifier":
-        return _go_to("planner", "query_classified")
-
-    if current_agent == "planner":
-        return _go_to("query_rewriter", "plan_created")
+        return _go_to("query_rewriter", "query_classified")
 
     if current_agent == "query_rewriter":
         return _go_to("retriever", "query_ready")
@@ -53,11 +54,15 @@ def route_next(current_agent: str, state: dict) -> RouteDecision:
         return _go_to("query_rewriter", "no_relevant_documents")
 
     if current_agent == "answer":
+        if _verification_exhausted(state):
+            return _stop("verification_exhausted")
         if state["answer"]:
             return _go_to("verifier", "answer_generated")
         return _stop("answer_generation_failed")
 
     if current_agent == "verifier":
-        return _go_to("query_rewriter", "verification_failed")
+        if not _verification_exhausted(state):
+            return _go_to("query_rewriter", "verification_failed")
+        return _go_to("answer", "verification_failed")  # last chance
 
     raise ValueError(f"Unknown agent: {current_agent}")

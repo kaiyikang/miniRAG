@@ -1,5 +1,15 @@
 from typing import List, Dict, Any
 
+from minirag.config import get_settings
+from minirag.embedding import OpenRouterEmbeddingEngine, EmbeddingError
+from minirag.vector_store import ChromaVectorStore
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential_jitter,
+    retry_if_exception_type,
+)
+
 CORPUS = [
     {
         "id": "doc_1",
@@ -49,6 +59,48 @@ def simple_search_tool(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
 
     scored_docs.sort(key=lambda x: x["score"], reverse=True)
     return scored_docs[:top_k]
+
+
+_settings = get_settings()
+_embed = OpenRouterEmbeddingEngine(
+    model=_settings.openrouter_embed_model, api_key=_settings.openrouter_api_key
+)
+_vstore = ChromaVectorStore(
+    vector_store_path=_settings.vector_store_path,
+    collection_name=_settings.collection_name,
+)
+
+
+@retry(
+    retry=retry_if_exception_type(EmbeddingError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential_jitter(initial=1, max=8),
+    reraise=True,
+)
+def _embed_query(query: str) -> list[float]:
+    return _embed.embed([query])[0]
+
+
+def vector_search_tool(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
+    """Real tool: embeds the query and searches the Chroma store built by
+    scripts/index_docs_online.py (same embedding model, so the vector space matches).
+    """
+    try:
+        query_embedding = _embed_query(query)
+    except EmbeddingError:
+        return []
+
+    chunks = _vstore.search(query_embedding, top_k=top_k)
+
+    return [
+        {
+            "id": chunk.chunk_id,
+            "title": chunk.metadata.get("file_name", ""),
+            "text": chunk.document,
+            "score": chunk.score,
+        }
+        for chunk in chunks
+    ]
 
 
 if __name__ == "__main__":
