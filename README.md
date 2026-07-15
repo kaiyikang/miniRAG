@@ -5,3 +5,8 @@ A simple RAG (Retrieval-Augmented Generation) system to help you understand the 
 ## Architecture
 
 ![miniRAG architecture](assets/architecture.svg)
+
+
+## Graph
+
+![Agnet Graph](assets/graph.jpg)
