@@ -45,6 +45,6 @@ pipeline = RAGPipeline(
 
 threading.Thread(target=consumer).start()
 
-answer = pipeline.query("I am fine, thanks")
+answer = pipeline.query("What is lead climbing?")
 done.wait()
 print(f"Answer: {answer.content}")

@@ -14,6 +14,7 @@ temp/
 bin/
 *.bin
 *.sqlite3
+*.md
 
 # Local knowledge corpus and derived vector index
 /data/raw/
