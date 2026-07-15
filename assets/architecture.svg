@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="810" viewBox="0 0 1200 810" role="img" aria-labelledby="architecture-title architecture-description">
+  <title id="architecture-title">miniRAG Architecture</title>
+  <desc id="architecture-description">Five-layer architecture showing user interfaces, application services, RAG and agent logic, data storage, and external model services.</desc>
+
+  <defs>
+    <linearGradient id="user-layer" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eff6ff"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="application-layer" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffbeb"/>
+      <stop offset="1" stop-color="#fef3c7"/>
+    </linearGradient>
+    <linearGradient id="logic-layer" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f0fdf4"/>
+      <stop offset="1" stop-color="#dcfce7"/>
+    </linearGradient>
+    <linearGradient id="data-layer" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fdf2f8"/>
+      <stop offset="1" stop-color="#fce7f3"/>
+    </linearGradient>
+    <linearGradient id="external-layer" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f9fafb"/>
+      <stop offset="1" stop-color="#f3f4f6"/>
+    </linearGradient>
+    <filter id="layer-shadow" x="-2%" y="-5%" width="104%" height="110%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#111827" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #1f2937; }
+      .diagram-title { font-size: 22px; font-weight: 700; text-anchor: middle; }
+      .layer-title { font-size: 14px; font-weight: 700; text-anchor: middle; }
+      .group-title { font-size: 12px; font-weight: 700; text-anchor: middle; fill: #374151; }
+      .box-title { font-size: 13px; font-weight: 600; text-anchor: middle; }
+      .box-detail { font-size: 11px; font-weight: 400; text-anchor: middle; fill: #6b7280; }
+      .agent-label { font-size: 11px; font-weight: 600; text-anchor: middle; fill: #4b5563; }
+      .box { fill: #ffffff; stroke: #d1d5db; stroke-width: 1; }
+      .highlight-box { fill: #f9fafb; stroke: #6b7280; stroke-width: 2; }
+      .subgroup { fill: #ffffff; fill-opacity: 0.65; stroke: #d1d5db; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <rect x="1" y="1" width="1198" height="808" rx="8" fill="#fafbfc" stroke="#e5e7eb"/>
+  <text class="diagram-title" x="600" y="36">miniRAG Architecture</text>
+
+  <g id="interface-layer" filter="url(#layer-shadow)">
+    <rect x="20" y="55" width="1160" height="115" rx="8" fill="url(#user-layer)" stroke="#3b82f6" stroke-width="2"/>
+    <text class="layer-title" x="600" y="79" fill="#1d4ed8">User / Interface Layer</text>
+
+    <rect class="box" x="40" y="92" width="350" height="58" rx="5"/>
+    <text class="box-title" x="215" y="116">CLI Query Tools</text>
+    <text class="box-detail" x="215" y="135">query_docs_online/offline.py</text>
+
+    <rect class="box" x="425" y="92" width="350" height="58" rx="5"/>
+    <text class="box-title" x="600" y="116">API Clients</text>
+    <text class="box-detail" x="600" y="135">SSE stream consumers</text>
+
+    <rect class="box" x="810" y="92" width="350" height="58" rx="5"/>
+    <text class="box-title" x="985" y="116">Indexing CLIs</text>
+    <text class="box-detail" x="985" y="135">scripts/index_docs_*.py</text>
+  </g>
+
+  <g id="application-layer" filter="url(#layer-shadow)">
+    <rect x="20" y="185" width="1160" height="115" rx="8" fill="url(#application-layer)" stroke="#d97706" stroke-width="2"/>
+    <text class="layer-title" x="600" y="209" fill="#92400e">Application Layer</text>
+
+    <rect class="highlight-box" x="40" y="222" width="350" height="58" rx="5"/>
+    <text class="box-title" x="215" y="246">FastAPI Server</text>
+    <text class="box-detail" x="215" y="265">GET /query (SSE)</text>
+
+    <rect class="box" x="425" y="222" width="350" height="58" rx="5"/>
+    <text class="box-title" x="600" y="246">Dependency Wiring</text>
+    <text class="box-detail" x="600" y="265">api/deps.py</text>
+
+    <rect class="box" x="810" y="222" width="350" height="58" rx="5"/>
+    <text class="box-title" x="985" y="246">Settings</text>
+    <text class="box-detail" x="985" y="265">pydantic-settings, .env</text>
+  </g>
+
+  <g id="logic-layer" filter="url(#layer-shadow)">
+    <rect x="20" y="315" width="1160" height="210" rx="8" fill="url(#logic-layer)" stroke="#16a34a" stroke-width="2"/>
+    <text class="layer-title" x="600" y="340" fill="#15803d">AI / Logic Layer</text>
+
+    <rect class="subgroup" x="40" y="354" width="700" height="151" rx="6"/>
+    <text class="group-title" x="390" y="378">RAG Pipeline (production)</text>
+
+    <rect class="box" x="55" y="391" width="210" height="94" rx="5"/>
+    <text class="box-title" x="160" y="424">Query Transform</text>
+    <text class="box-detail" x="160" y="447">Identity / HyDE</text>
+
+    <rect class="box" x="285" y="391" width="210" height="94" rx="5"/>
+    <text class="box-title" x="390" y="418">Retrieve + Rerank</text>
+    <text class="box-detail" x="390" y="441">Chroma top-k</text>
+    <text class="box-detail" x="390" y="459">Vector / CrossEncoder</text>
+
+    <rect class="box" x="515" y="391" width="210" height="94" rx="5"/>
+    <text class="box-title" x="620" y="424">Generate</text>
+    <text class="box-detail" x="620" y="447">chat history, event stream</text>
+
+    <rect class="subgroup" x="760" y="354" width="400" height="151" rx="6"/>
+    <text class="group-title" x="960" y="378">agent101 (experimental orchestrator)</text>
+
+    <rect class="box" x="775" y="391" width="82" height="94" rx="5"/>
+    <text class="agent-label" x="816" y="442">Classifier</text>
+
+    <rect class="box" x="871" y="391" width="82" height="94" rx="5"/>
+    <text class="agent-label" x="912" y="442">Retriever</text>
+
+    <rect class="box" x="967" y="391" width="82" height="94" rx="5"/>
+    <text class="agent-label" x="1008" y="442">Answer</text>
+
+    <rect class="box" x="1063" y="391" width="82" height="94" rx="5"/>
+    <text class="agent-label" x="1104" y="442">Verifier</text>
+  </g>
+
+  <g id="data-layer" filter="url(#layer-shadow)">
+    <rect x="20" y="540" width="1160" height="115" rx="8" fill="url(#data-layer)" stroke="#db2777" stroke-width="2"/>
+    <text class="layer-title" x="600" y="564" fill="#9d174d">Data Layer</text>
+
+    <rect class="box" x="40" y="577" width="350" height="58" rx="5"/>
+    <text class="box-title" x="215" y="601">Chroma Vector Store</text>
+    <text class="box-detail" x="215" y="620">persistent, data/chroma/</text>
+
+    <rect class="box" x="425" y="577" width="350" height="58" rx="5"/>
+    <text class="box-title" x="600" y="601">Document Corpus</text>
+    <text class="box-detail" x="600" y="620">data/raw/ markdown</text>
+
+    <rect class="box" x="810" y="577" width="350" height="58" rx="5"/>
+    <text class="box-title" x="985" y="601">Embedding Cache</text>
+    <text class="box-detail" x="985" y="620">temp/, MiniLM-L6-v2</text>
+  </g>
+
+  <g id="external-layer" filter="url(#layer-shadow)">
+    <rect x="20" y="670" width="1160" height="115" rx="8" fill="url(#external-layer)" stroke="#d1d5db" stroke-width="2" stroke-dasharray="6 5"/>
+    <text class="layer-title" x="600" y="694" fill="#6b7280">External Services</text>
+
+    <rect class="box" x="40" y="707" width="550" height="58" rx="5"/>
+    <text class="box-title" x="315" y="731">OpenRouter API</text>
+    <text class="box-detail" x="315" y="750">LLM (glm-5.2) + Embeddings (gemini-embedding-2)</text>
+
+    <rect class="box" x="610" y="707" width="550" height="58" rx="5"/>
+    <text class="box-title" x="885" y="731">sentence-transformers</text>
+    <text class="box-detail" x="885" y="750">local fallback embeddings</text>
+  </g>
+</svg>
