@@ -1,12 +1,15 @@
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-import queue
 import json
+import queue
 import threading
-import uvicorn
 
-from .deps import create_pipeline, RAGEvent
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+
+from minirag.types import RAGEvent
+
+from .deps import create_pipeline
 
 app = FastAPI()
 
@@ -21,7 +24,7 @@ app.add_middleware(
 
 @app.get("/query")
 async def query_stream(question: str):
-    q = queue.Queue()
+    q: queue.Queue[RAGEvent] = queue.Queue()
 
     pipeline = create_pipeline(q)
 

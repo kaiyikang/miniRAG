@@ -105,7 +105,7 @@ class RAGPipeline:
 
         # placeholder for rerank
         ranked_chunks = retrieved_chunks[:rerank_k]
-        self._emit(query_id, "rerank", chunk_count=len(ranked_chunks))
+        self._emit(query_id, "rerank(not yet)", chunk_count=len(ranked_chunks))
 
         if not ranked_chunks:
             context = "No relevant context found."

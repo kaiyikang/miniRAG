@@ -9,9 +9,12 @@ __pycache__/
 temp/
 
 # Intermediate products
-*.md
 *.sql
 *.jsonl
 bin/
 *.bin
 *.sqlite3
+
+# Local knowledge corpus and derived vector index
+/data/raw/
+/data/chroma/

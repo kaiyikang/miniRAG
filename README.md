@@ -43,8 +43,8 @@ flowchart TB
 
     subgraph data["Data Layer"]
         direction LR
-        chroma["Chroma vector store<br/>Persistent: store/"]
-        corpus["Document corpus<br/>Markdown: docs/"]
+        chroma["Chroma vector store<br/>Persistent: data/chroma/"]
+        corpus["Document corpus<br/>Markdown: data/raw/"]
         cache["Embedding cache<br/>temp/ + MiniLM-L6-v2"]
     end
 

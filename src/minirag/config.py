@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_DATA_DIR = _PROJECT_ROOT / "data"
 
 
 class Settings(BaseSettings):
@@ -21,13 +22,13 @@ class Settings(BaseSettings):
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_model_cache_dir: str = str(_PROJECT_ROOT / "temp")
 
-    vector_store_path: str = str(_PROJECT_ROOT / "store")
-    collection_name: str = "default_collection"
+    vector_store_path: str = str(_DATA_DIR / "chroma")
+    collection_name: str = "personal_notes_gemini_embedding_2_v1"
 
-    documents_dir: str = str(_PROJECT_ROOT / "docs")
+    documents_dir: str = str(_DATA_DIR / "raw")
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_PROJECT_ROOT / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
