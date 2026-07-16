@@ -109,7 +109,33 @@ class RetrieverState:
     finish_reason: str | None = None
 
 
-class LLMRetrieverPolicy:
+def format_steps(steps: list[Step]) -> str:
+    if not steps:
+        return "(none yet)"
+    return "\n".join(
+        f"Step {i}: {step.action} -> {step.observation}"
+        for i, step in enumerate(steps, start=1)
+    )
+
+
+def format_candidates(candidates: dict[str, SearchedChunk]) -> str:
+    if not candidates:
+        return "(none yet)"
+    return "\n".join(
+        f"- {chunk_id}: {chunk.document} (score={chunk.score:.3f})"
+        for chunk_id, chunk in candidates.items()
+    )
+
+
+def format_inspected(inspected: dict[str, str]) -> str:
+    if not inspected:
+        return "(none yet)"
+    return "\n".join(
+        f"- {chunk_id}: {content}" for chunk_id, content in inspected.items()
+    )
+
+
+class RetrieverPolicy:
     def __init__(self, llm: InferenceEngine):
         self._llm = llm
 
@@ -168,3 +194,78 @@ Choose exactly one next action:
 Do not repeat an identical unsuccessful action.
 Return structured JSON only.
 """
+
+
+class RetrieverAgent:
+    def __init__(
+        self, policy: RetrieverPolicy, tools: RetrievalTools, max_steps: int = 8
+    ):
+        self.policy = policy
+        self.tools = tools
+        self.max_steps = max_steps
+
+    def run(self, goal: str, verbose: bool = False) -> RetrieverState:
+        state = RetrieverState(goal=goal)
+
+        while not state.finished:
+            if len(state.steps) >= self.max_steps:
+                state.finished = True
+                state.finish_reason = "max_steps_reached"
+                break
+
+            action = self.policy.decide(state)
+            observation = self._execute(action, state)
+
+            if verbose:
+                print(f"[step {len(state.steps) + 1}] action={action} observation={observation}")
+
+            state.steps.append(Step(action=action, observation=observation))
+
+        return state
+
+    def _execute(self, action: AgentAction, state: RetrieverState):
+        if isinstance(action, SearchAction):
+            results = self.tools.search(action.query, action.top_k)
+
+            for result in results:
+                state.candidate_documents[result.chunk_id] = result
+
+            return {"status": "ok", "result_count": len(results), "results": results}
+
+        if isinstance(action, InspectAction):
+            if action.chunk_id not in state.candidate_documents:
+                return {
+                    "status": "rejected",
+                    "reason": "document_not_in_candidates",
+                }
+            content = state.candidate_documents[action.chunk_id].document
+            state.inspected_documents[action.chunk_id] = content
+
+            return {
+                "status": "ok",
+                "chunk_id": action.chunk_id,
+                "content": content,
+            }
+
+        if isinstance(action, FinishAction):
+            state.finished = True
+            state.finish_reason = action.reason
+            state.final_document_ids = list(state.inspected_documents.keys())
+
+            return {"status": "finished", "reason": action.reason}
+
+        raise TypeError(f"Unknown action: {action}")
+
+
+if __name__ == "__main__":
+    import sys
+
+    goal = sys.argv[1] if len(sys.argv) > 1 else "lead climbing?"
+
+    agent = RetrieverAgent(policy=RetrieverPolicy(llm), tools=RetrievalTools())
+    final_state = agent.run(goal, verbose=True)
+
+    print("finished:", final_state.finished, "reason:", final_state.finish_reason)
+    print("steps taken:", len(final_state.steps))
+    for chunk_id in final_state.final_document_ids:
+        print("-", chunk_id, ":", final_state.inspected_documents[chunk_id][:100])
