@@ -12,6 +12,7 @@ class InferenceEngine(ABC):
         *,
         reasoning: bool = True,
         last_response: dict[str, Any] | None = None,
+        schema: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Generate a response and return the assistant message dict."""
 
@@ -61,6 +62,7 @@ class OpenRouterEngine(InferenceEngine):
         *,
         reasoning: bool = True,
         last_response: dict[str, Any] | None = None,
+        schema: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Generate a response and return the assistant message dict.
 
@@ -72,6 +74,28 @@ class OpenRouterEngine(InferenceEngine):
         """
         payload_messages = self._prepare_messages(messages, last_response)
 
+        response_format = (
+            {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "miniRAG",
+                    "strict": True,
+                    "schema": schema,
+                },
+            }
+            if schema
+            else None
+        )
+
+        payload = {
+            "model": self.model,
+            "messages": payload_messages,
+            "reasoning": {"enabled": reasoning},
+        }
+
+        if response_format:
+            payload["response_format"] = response_format
+
         try:
             response = requests.post(
                 self.BASE_URL,
@@ -79,11 +103,7 @@ class OpenRouterEngine(InferenceEngine):
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                 },
-                json={
-                    "model": self.model,
-                    "messages": payload_messages,
-                    "reasoning": {"enabled": reasoning},
-                },
+                json=payload,
             )
             response.raise_for_status()
         except requests.RequestException as exc:
