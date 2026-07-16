@@ -3,6 +3,8 @@ from chromadb import ClientAPI
 from abc import ABC, abstractmethod
 from minirag.types import Chunk, SearchedChunk
 from hashlib import sha256
+from itertools import repeat
+from typing import Any, Iterable
 
 
 class VectorStore(ABC):
@@ -78,36 +80,55 @@ class ChromaVectorStore(VectorStore):
         distances = results["distances"][0] if results["distances"] else []
         embeddings = results["embeddings"][0] if results["embeddings"] else []
 
-        return [
-            SearchedChunk(
-                chunk_id=chunk_id,
-                document=document,
-                metadata=metadata,
-                embedding=embedding,
-                score=1 - distance,
-            )
-            for chunk_id, document, metadata, embedding, distance in zip(
-                chunk_ids, documents, metadatas, embeddings, distances
-            )
-        ]
+        return self._to_searched_chunks(
+            chunk_ids, documents, metadatas, embeddings, (1 - d for d in distances)
+        )
+
+    def get_by_ids(self, chunk_ids: list[str]) -> list[SearchedChunk]:
+        results = self._collection.get(
+            ids=chunk_ids, include=["documents", "metadatas", "embeddings"]
+        )
+        if not results:
+            return []
+
+        return self._to_searched_chunks(
+            results["ids"],
+            results["documents"],
+            results["metadatas"],
+            results["embeddings"],
+            repeat(0.0),
+        )
 
     def get_all_chunks(self):
         results = self._collection.get(include=["documents", "metadatas", "embeddings"])
         if not results:
             return []
 
+        return self._to_searched_chunks(
+            results["ids"],
+            results["documents"],
+            results["metadatas"],
+            results["embeddings"],
+            repeat(0.0),
+        )
+
+    @staticmethod
+    def _to_searched_chunks(
+        chunk_ids: list[str],
+        documents: list[str],
+        metadatas: list[dict[str, Any]],
+        embeddings: list[list[float]],
+        scores: Iterable[float],
+    ) -> list[SearchedChunk]:
         return [
             SearchedChunk(
                 chunk_id=chunk_id,
                 document=document,
                 metadata=metadata,
                 embedding=embedding,
-                score=0.0,
+                score=score,
             )
-            for chunk_id, document, metadata, embedding in zip(
-                results["ids"],
-                results["documents"],
-                results["metadatas"],
-                results["embeddings"],
+            for chunk_id, document, metadata, embedding, score in zip(
+                chunk_ids, documents, metadatas, embeddings, scores
             )
         ]

@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from minirag.config import get_settings
 from minirag.embedding import OpenRouterEmbeddingEngine, EmbeddingError
 from minirag.vector_store import ChromaVectorStore
+from minirag.types import SearchedChunk
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -44,6 +45,16 @@ class Tool:
         return self.run_func(**kwargs)
 
 
+_settings = get_settings()
+_embed = OpenRouterEmbeddingEngine(
+    model=_settings.openrouter_embed_model, api_key=_settings.openrouter_api_key
+)
+_vstore = ChromaVectorStore(
+    vector_store_path=_settings.vector_store_path,
+    collection_name=_settings.collection_name,
+)
+
+
 def simple_search_tool(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
     query_words = set(query.lower().split())
 
@@ -61,16 +72,6 @@ def simple_search_tool(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
     return scored_docs[:top_k]
 
 
-_settings = get_settings()
-_embed = OpenRouterEmbeddingEngine(
-    model=_settings.openrouter_embed_model, api_key=_settings.openrouter_api_key
-)
-_vstore = ChromaVectorStore(
-    vector_store_path=_settings.vector_store_path,
-    collection_name=_settings.collection_name,
-)
-
-
 @retry(
     retry=retry_if_exception_type(EmbeddingError),
     stop=stop_after_attempt(3),
@@ -85,12 +86,8 @@ def vector_search_tool(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
     """Real tool: embeds the query and searches the Chroma store built by
     scripts/index_docs_online.py (same embedding model, so the vector space matches).
     """
-    try:
-        query_embedding = _embed_query(query)
-    except EmbeddingError:
-        return []
 
-    chunks = _vstore.search(query_embedding, top_k=top_k)
+    chunks = vector_search(query, top_k=top_k)
 
     return [
         {
@@ -101,6 +98,25 @@ def vector_search_tool(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         }
         for chunk in chunks
     ]
+
+
+def vector_search(query: str, top_k: int = 3) -> List[SearchedChunk]:
+    try:
+        query_embedding = _embed_query(query)
+    except EmbeddingError:
+        return []
+
+    chunks = _vstore.search(query_embedding, top_k=top_k)
+
+    return chunks
+
+
+def get_docs_by_ids_tool(ids: List[str]) -> List[SearchedChunk]:
+    """Real tool: fetch documents directly by their chunk ids from the Chroma store."""
+
+    chunks = _vstore.get_by_ids(ids)
+
+    return chunks
 
 
 if __name__ == "__main__":
