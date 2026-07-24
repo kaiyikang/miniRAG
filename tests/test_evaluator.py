@@ -8,6 +8,7 @@ from minirag.evaluator import (
     Evaluator,
     EvalResult,
     EvalSample,
+    QA_DATASET_FILENAME,
     cal_retrieval_recall as retrieval_recall,
     cal_token_f1 as token_f1,
 )
@@ -49,7 +50,7 @@ class TestTokenF1(unittest.TestCase):
 class TestEvaluator(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        dataset = Path(self.tmpdir) / "qa_dataset10.jsonl"
+        dataset = Path(self.tmpdir) / QA_DATASET_FILENAME
         with open(dataset, "w", encoding="utf-8") as f:
             for i in range(7):
                 f.write(json.dumps({"question": f"q{i}", "expected_answer": f"a{i}", "expected_chunk_ids": [f"c{i}"]}, ensure_ascii=False) + "\n")

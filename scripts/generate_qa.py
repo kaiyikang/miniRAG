@@ -1,10 +1,18 @@
 from minirag.llm_engine import OpenRouterEngine
 from minirag.vector_store import ChromaVectorStore
 from minirag.config import get_settings
-import os
+from minirag.evaluator import QA_DATASET_FILENAME, _git_info
+import argparse
+import random
 import re
 import json
+from datetime import datetime
+from pathlib import Path
 from pydantic import BaseModel, Field, ValidationError
+
+PROMPT_VERSION = "v1"  # bump when QA_GENERATION_PROMPT changes, recorded in provenance
+MIN_WORDS = 20  # chunks shorter than this are too thin to ask good questions
+SEED = 42  # fixes the chunk sample so a regenerated dataset is reproducible
 
 
 class QAPair(BaseModel):
@@ -55,7 +63,8 @@ def generate_qa_for_chunk(
 ) -> list[dict]:
 
     content = llm.generate(
-        messages=QA_GENERATION_PROMPT.format(n_questions=n_questions, text=text)
+        messages=QA_GENERATION_PROMPT.format(n_questions=n_questions, text=text),
+        span_name="qa_generation",
     )["content"]
 
     content = parse_qa_content(content)
@@ -64,6 +73,21 @@ def generate_qa_for_chunk(
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Generate a QA eval dataset from indexed chunks."
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Max QA samples to write (default 10). 0 = generate from the whole corpus.",
+    )
+    parser.add_argument("--n-questions", type=int, default=3)
+    parser.add_argument(
+        "--force", action="store_true", help="Overwrite an existing dataset."
+    )
+    args = parser.parse_args()
+
     settings = get_settings()
 
     llm = OpenRouterEngine(
@@ -75,23 +99,61 @@ if __name__ == "__main__":
         collection_name=settings.collection_name,
     )
 
-    os.makedirs("data", exist_ok=True)
-    chunks = store.get_all_chunks()
-    with open("data/qa_dataset.jsonl", "w", encoding="utf-8") as f:
-        for idx, chunk in enumerate(chunks):
-            # too short, don't generate
-            if len(chunk.document.split()) < 20:
-                continue
-            print(f"{idx}/{len(chunks)}")
+    # Output lives next to what the evaluator reads (eval/), under one shared name.
+    out_path = Path("eval") / QA_DATASET_FILENAME
+    if out_path.exists() and not args.force:
+        raise SystemExit(
+            f"{out_path} already exists — refusing to overwrite the ground-truth "
+            f"dataset. Pass --force to regenerate, or delete it first."
+        )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Sample eligible chunks up front (seeded, so a regenerated dataset is
+    # reproducible and not biased toward whatever happens to be first in the store).
+    eligible = [c for c in store.get_all_chunks() if len(c.document.split()) >= MIN_WORDS]
+    random.Random(SEED).shuffle(eligible)
+
+    n_chunks = 0
+    n_written = 0
+    with open(out_path, "w", encoding="utf-8") as f:
+        for chunk in eligible:
+            if args.limit and n_written >= args.limit:
+                break
+            n_chunks += 1
+            print(f"chunk {n_chunks} | {n_written} samples so far")
             try:
-                qa_pairs = generate_qa_for_chunk(chunk.document, llm)
-                for qa in qa_pairs:
-                    sample = {
-                        "question": qa.question,
-                        "expected_answer": qa.answer,
-                        "expected_chunk_ids": [chunk.chunk_id],
-                    }
-                    f.write(json.dumps(sample, ensure_ascii=False) + "\n")
+                qa_pairs = generate_qa_for_chunk(chunk.document, llm, args.n_questions)
             except Exception as e:
                 print(f"Failed on chunk {chunk.chunk_id}: {e}")
                 continue
+            for qa in qa_pairs:
+                if args.limit and n_written >= args.limit:
+                    break
+                sample = {
+                    "question": qa.question,
+                    "expected_answer": qa.answer,
+                    "expected_chunk_ids": [chunk.chunk_id],
+                }
+                f.write(json.dumps(sample, ensure_ascii=False) + "\n")
+                n_written += 1
+
+    # Provenance sidecar: how this dataset was produced, so eval results stay
+    # interpretable months later (mirrors the git/params recorded per eval run).
+    commit, dirty = _git_info()
+    meta = {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "git_commit": commit,
+        "git_dirty": dirty,
+        "model": settings.openrouter_model,
+        "source_collection": settings.collection_name,
+        "prompt_version": PROMPT_VERSION,
+        "n_questions_per_chunk": args.n_questions,
+        "min_words": MIN_WORDS,
+        "seed": SEED,
+        "limit": args.limit,
+        "n_chunks_used": n_chunks,
+        "n_samples": n_written,
+    }
+    meta_path = out_path.with_suffix(".meta.json")
+    meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False))
+    print(f"Wrote {n_written} samples to {out_path}\nProvenance: {meta_path}")

@@ -4,7 +4,7 @@ from minirag.embedding import OpenRouterEmbeddingEngine
 from minirag.vector_store import ChromaVectorStore
 from minirag.llm_engine import OpenRouterEngine
 from minirag.document import SlidingWindowChunker
-from minirag.evaluator import Evaluator
+from minirag.evaluator import Evaluator, QA_DATASET_FILENAME
 from minirag.query_transform import HyDETransformer
 import queue
 
@@ -42,7 +42,7 @@ params = {
     "chunk_size": CHUNK_SIZE,
     "top_k": TOP_K,
     "query_transformer": "HyDE",
-    "dataset": "qa_dataset10.jsonl",
+    "dataset": QA_DATASET_FILENAME,
 }
 
 evaluator = Evaluator(

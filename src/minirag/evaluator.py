@@ -12,6 +12,11 @@ import traceback
 import math
 
 
+# Single source of truth for the eval dataset filename, shared by the producer
+# (scripts/generate_qa.py) and this consumer so the two can't drift apart.
+QA_DATASET_FILENAME = "qa_dataset.jsonl"
+
+
 class EvalSample(NamedTuple):
     question: str
     expected_answer: str
@@ -43,7 +48,7 @@ class Evaluator:
     ):
         self._pipeline = pipeline
         Path(dataset_dir).mkdir(parents=True, exist_ok=True)
-        self._dataset = Path(dataset_dir) / "qa_dataset10.jsonl"
+        self._dataset = Path(dataset_dir) / QA_DATASET_FILENAME
         if not self._dataset.exists():
             raise ValueError("Cannot find the qa dataset!")
 
