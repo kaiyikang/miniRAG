@@ -8,8 +8,8 @@ from minirag.evaluator import (
     Evaluator,
     EvalResult,
     EvalSample,
-    retrieval_recall,
-    token_f1,
+    cal_retrieval_recall as retrieval_recall,
+    cal_token_f1 as token_f1,
 )
 from minirag.types import Answer
 
@@ -49,7 +49,7 @@ class TestTokenF1(unittest.TestCase):
 class TestEvaluator(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
-        dataset = Path(self.tmpdir) / "qa_dataset.jsonl"
+        dataset = Path(self.tmpdir) / "qa_dataset10.jsonl"
         with open(dataset, "w", encoding="utf-8") as f:
             for i in range(7):
                 f.write(json.dumps({"question": f"q{i}", "expected_answer": f"a{i}", "expected_chunk_ids": [f"c{i}"]}, ensure_ascii=False) + "\n")
@@ -59,6 +59,7 @@ class TestEvaluator(unittest.TestCase):
             content="actual answer",
             sources=[],
             retrieved_chunk_ids=["c1"],
+            retrieved_chunks=["chunk text"],
         )
         self.evaluator = Evaluator(mock_pipeline, self.tmpdir, recall_top_k=5)
 
@@ -76,11 +77,11 @@ class TestEvaluator(unittest.TestCase):
 
         with open(self.evaluator._eval_summary, "r", encoding="utf-8") as f:
             summary = json.load(f)
-        self.assertIn("retrieval_recall@5", summary)
-        self.assertIn("answer_f1", summary)
-        self.assertIn("n_samples", summary)
-        # limit=5, 7 samples in file, only 5 processed
-        self.assertEqual(summary["n_samples"], 6)
+        metrics = summary["metrics"]
+        self.assertIn("retrieval_recall@5", metrics)
+        self.assertIn("answer_f1", metrics)
+        self.assertIn("n_samples", metrics)
+        self.assertEqual(metrics["n_samples"], 7)
 
     def test_evaluate_handles_sample_errors(self):
         self.evaluator._pipeline.query.side_effect = RuntimeError("boom")
@@ -89,11 +90,13 @@ class TestEvaluator(unittest.TestCase):
         self.assertTrue(self.evaluator._eval_summary.exists())
         with open(self.evaluator._eval_summary, "r", encoding="utf-8") as f:
             summary = json.load(f)
-        self.assertEqual(summary["n_samples"], 0)
+        self.assertEqual(summary["metrics"]["n_samples"], 0)
 
     def test_missing_dataset_raises(self):
+        # Existing but empty dir: dataset file absent -> ValueError.
+        empty_dir = tempfile.mkdtemp()
         with self.assertRaises(ValueError):
-            Evaluator(MagicMock(), "/nonexistent/path")
+            Evaluator(MagicMock(), empty_dir)
 
 
 if __name__ == "__main__":

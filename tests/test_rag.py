@@ -23,9 +23,7 @@ class MockLLM(InferenceEngine):
     def __init__(self, answer: str = "RAG is retrieval augmented generation system."):
         self._answer = answer
 
-    def generate(
-        self, messages, *, reasoning=True, last_response=None
-    ) -> dict[str, Any]:
+    def generate(self, messages, **kwargs) -> dict[str, Any]:
         return {"content": self._answer}
 
 

@@ -186,7 +186,10 @@ class TestLoadDocuments(unittest.TestCase):
 
         result = load_documents("/fake/path")
 
-        mock_reader_cls.assert_called_once_with(input_dir="/fake/path")
+        kwargs = mock_reader_cls.call_args.kwargs
+        self.assertEqual(kwargs["input_dir"], "/fake/path")
+        self.assertTrue(kwargs["recursive"])
+        self.assertIn(".md", kwargs["file_extractor"])
         self.assertEqual(result, [mock_doc])
 
     def test_load_documents_missing_path_raises(self):
