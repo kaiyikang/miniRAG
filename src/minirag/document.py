@@ -96,16 +96,20 @@ class SlidingWindowChunker(Chunker):
 
 class MarkdownWithoutFrontmatterReader(BaseReader):
     _frontmatter_re = re.compile(r"^---\s*\n.*?\n---\s*\n", re.DOTALL)
+    _image_re = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+    _link_re = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 
     def load_data(self, file_path, extra_info=None):
-        docs = MarkdownReader().load_data(file_path, extra_info=extra_info)
-        return [
-            Document(
-                text=self._frontmatter_re.sub("", doc.text),
-                metadata=doc.metadata,
-            )
-            for doc in docs
-        ]
+        docs = MarkdownReader(remove_images=False, remove_hyperlinks=False).load_data(
+            file_path, extra_info=extra_info
+        )
+        result = []
+        for doc in docs:
+            text = self._frontmatter_re.sub("", doc.text)
+            text = self._image_re.sub("", text)
+            text = self._link_re.sub(r"\1", text)
+            result.append(Document(text=text, metadata=doc.metadata))
+        return result
 
 
 def load_documents(path: str) -> list[Document]:

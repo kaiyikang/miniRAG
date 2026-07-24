@@ -6,6 +6,7 @@ from minirag.query_transform import IdentityTransformer, QueryTransformer
 from minirag.types import Chunk, Answer, RAGEvent
 from minirag.reranker import Reranker
 from typing import Any
+from langfuse import observe, get_client
 import queue
 import uuid
 
@@ -44,6 +45,7 @@ class RAGPipeline:
 
     def _emit(self, event_id: str, step: str, **data: Any) -> None:
         self._events.put(RAGEvent(event_id=event_id, step=step, data=data))
+        get_client().update_current_span(metadata={step: data})
 
     def index_documents(self, document_dirs: str | list[str]) -> None:
         if isinstance(document_dirs, str):
@@ -73,8 +75,11 @@ class RAGPipeline:
     def clear_history(self):
         self._history = []
 
+    @observe(name="rag_query", capture_input=False)
     def query(self, question: str, retrieve_k: int = 10, rerank_k: int = 5) -> Answer:
         query_id = uuid.uuid4().hex
+        # Explicit input keeps `self` (engines, history) out of the trace.
+        get_client().update_current_span(input={"question": question})
         self._emit(query_id, "start", question=question)
 
         # transformation
@@ -124,7 +129,9 @@ class RAGPipeline:
 
         # Generation
         try:
-            content = self._llm.generate(messages=messages)["content"]
+            content = self._llm.generate(
+                messages=messages, span_name="answer_generation"
+            )["content"]
         except (KeyError, TypeError, InferenceError):
             self._emit(query_id, "error", reason="generation_failed")
             return Answer(

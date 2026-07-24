@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import requests
+from langfuse import get_client, observe
 
 
 class InferenceEngine(ABC):
@@ -13,6 +14,7 @@ class InferenceEngine(ABC):
         reasoning: bool = True,
         last_response: dict[str, Any] | None = None,
         schema: dict[str, Any] | None = None,
+        span_name: str | None = None,
     ) -> dict[str, Any]:
         """Generate a response and return the assistant message dict."""
 
@@ -56,6 +58,7 @@ class OpenRouterEngine(InferenceEngine):
 
         return messages
 
+    @observe(as_type="generation")
     def generate(
         self,
         messages: str | list[dict[str, Any]],
@@ -63,6 +66,7 @@ class OpenRouterEngine(InferenceEngine):
         reasoning: bool = True,
         last_response: dict[str, Any] | None = None,
         schema: dict[str, Any] | None = None,
+        span_name: str | None = None,
     ) -> dict[str, Any]:
         """Generate a response and return the assistant message dict.
 
@@ -110,6 +114,29 @@ class OpenRouterEngine(InferenceEngine):
             raise InferenceError(f"LLM inference failed: {exc}") from exc
 
         try:
-            return response.json()["choices"][0]["message"]
+            body = response.json()
+            message = body["choices"][0]["message"]
         except (KeyError, IndexError, TypeError) as exc:
             raise InferenceError(f"Unexpected response format: {exc}") from exc
+
+        # Normalise OpenRouter's usage keys (prompt_tokens/completion_tokens) to
+        # Langfuse's standard input/output so they match the model definition's
+        # price keys
+        raw_usage = body.get("usage") or {}
+        usage_details = {
+            k: v
+            for k, v in {
+                "input": raw_usage.get("prompt_tokens"),
+                "output": raw_usage.get("completion_tokens"),
+            }.items()
+            if v is not None
+        }
+
+        get_client().update_current_generation(
+            name=span_name,
+            model=self.model,
+            input=payload_messages,
+            output=message,
+            usage_details=usage_details or None,
+        )
+        return message

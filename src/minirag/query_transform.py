@@ -22,9 +22,9 @@ class HyDETransformer(QueryTransformer):
 
     def transform(self, question: str) -> str:
         try:
-            assumed_answer = self._llm.generate(self.PROMPT.format(question=question))[
-                "content"
-            ]
+            assumed_answer = self._llm.generate(
+                self.PROMPT.format(question=question), span_name="hyde_rewrite"
+            )["content"]
         except (KeyError, TypeError, InferenceError):
             return ""
         return assumed_answer if assumed_answer else ""
