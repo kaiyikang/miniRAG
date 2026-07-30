@@ -1,21 +1,9 @@
-from tool import vector_search, get_docs_by_ids_tool
 from minirag.types import SearchedChunk
 from minirag.llm_engine import OpenRouterEngine, InferenceEngine
-from minirag.config import get_settings
+from minirag.agents.tool import SearchTools
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Literal
 import json
-
-_settings = get_settings()
-
-
-llm = OpenRouterEngine(
-    model=_settings.openrouter_model, api_key=_settings.openrouter_api_key
-)
-
-
-def retrieve(query: str) -> List[SearchedChunk]:
-    return vector_search(query, 5)
 
 
 @dataclass
@@ -76,15 +64,18 @@ AGENT_ACTION_SCHEMA: dict[str, Any] = {
 
 # Boundary between agent and real world
 class RetrievalTools:
+    def __init__(self, tools: SearchTools):
+        self._tools = tools
+
     def search(self, query: str, top_k: int) -> list[SearchedChunk]:
-        return vector_search(query, top_k)
+        return self._tools.vector_search(query, top_k)
 
     def inspect(self, chunk_id: str) -> str:
-        chunk = get_docs_by_ids_tool([chunk_id])
+        chunk = self._tools.get_by_ids([chunk_id])
 
         if len(chunk) == 0 or not chunk[0]:
             raise ValueError(f"Document not found: {chunk_id}")
-        return chunk.document
+        return chunk[0].document
 
 
 @dataclass
@@ -217,7 +208,9 @@ class RetrieverAgent:
             observation = self._execute(action, state)
 
             if verbose:
-                print(f"[step {len(state.steps) + 1}] action={action} observation={observation}")
+                print(
+                    f"[step {len(state.steps) + 1}] action={action} observation={observation}"
+                )
 
             state.steps.append(Step(action=action, observation=observation))
 
@@ -259,10 +252,26 @@ class RetrieverAgent:
 
 if __name__ == "__main__":
     import sys
+    from minirag.config import get_settings
+    from minirag.embedding import OpenRouterEmbeddingEngine
+    from minirag.vector_store import ChromaVectorStore
+
+    settings = get_settings()
+    embed = OpenRouterEmbeddingEngine(
+        model=settings.openrouter_embed_model, api_key=settings.openrouter_api_key
+    )
+    vstore = ChromaVectorStore(
+        vector_store_path=settings.vector_store_path,
+        collection_name=settings.collection_name,
+    )
+    llm = OpenRouterEngine(
+        model=settings.openrouter_model, api_key=settings.openrouter_api_key
+    )
 
     goal = sys.argv[1] if len(sys.argv) > 1 else "lead climbing?"
 
-    agent = RetrieverAgent(policy=RetrieverPolicy(llm), tools=RetrievalTools())
+    tools = RetrievalTools(SearchTools(embed, vstore))
+    agent = RetrieverAgent(policy=RetrieverPolicy(llm), tools=tools)
     final_state = agent.run(goal, verbose=True)
 
     print("finished:", final_state.finished, "reason:", final_state.finish_reason)

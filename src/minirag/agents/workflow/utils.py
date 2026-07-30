@@ -1,3 +1,11 @@
+"""Transitional LLM helper for the workflow line.
+
+NOTE (Step 3, yours): this hand-rolled OpenRouter client duplicates
+minirag.llm_engine.OpenRouterEngine. The plan is to delete this file and route
+every agent_func through an injected InferenceEngine.generate(schema=...).
+It stays only so the workflow line runs end-to-end after Step 2.
+"""
+
 import json
 import os
 import re

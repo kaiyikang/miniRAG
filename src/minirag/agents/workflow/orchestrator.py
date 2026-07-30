@@ -1,20 +1,10 @@
-from utils import call_llm_json
-from state import create_initial_state, RagState, END
-from tool import Tool, simple_search_tool, vector_search_tool
-from route import route_next
+from functools import partial
 
-TOOLS = {
-    "simple_search": Tool(
-        name="simple_search",
-        description="Search relevant documents from the local corpus.",
-        run_func=simple_search_tool,
-    ),
-    "vector_search": Tool(
-        name="vector_search",
-        description="Search relevant documents from the Chroma vector store.",
-        run_func=vector_search_tool,
-    ),
-}
+from minirag.agents.workflow.utils import call_llm_json
+from minirag.agents.workflow.state import create_initial_state, RagState, END
+from minirag.agents.workflow.route import route_next
+from minirag.agents.tool import SearchTools
+from minirag.llm_engine import InferenceEngine, OpenRouterEngine
 
 
 class Agent:
@@ -51,8 +41,8 @@ class Agent:
         return True
 
 
-def llm_classifier_agent_func(local_input):
-    prompt = f"""
+def llm_classifier_agent_func(local_input, llm: InferenceEngine):
+    messages = f"""
 User query: {local_input["original_query"]}
 
 Only return JSON:
@@ -62,7 +52,7 @@ Only return JSON:
 }}
 """
 
-    return call_llm_json(prompt)
+    return llm.generate(messages=messages)
 
 
 classifier_agent = Agent(
@@ -199,24 +189,6 @@ answer_agent = Agent(
 )
 
 
-def retriever_agent_func(local_input):
-    query = local_input.get("current_query") or local_input.get("original_query")
-
-    docs = TOOLS["vector_search"].run(query=query, top_k=2)
-
-    return {"docs": docs}
-
-
-retriever_agent = Agent(
-    name="retriever",
-    role="Retrieve relevant documents",
-    input_keys={"original_query", "current_query"},
-    output_schema={"docs": list},
-    allowed_update_keys={"docs"},
-    run_func=retriever_agent_func,
-)
-
-
 def rerank_documents_agent_func(local_input: dict) -> dict:
     query = local_input["original_query"]
     docs = local_input["docs"]
@@ -293,6 +265,35 @@ verifier_agent = Agent(
 )
 
 
+def retriever_agent_func(local_input, tools: SearchTools):
+    query = local_input.get("current_query") or local_input.get("original_query")
+    docs = tools.vector_search_dicts(query, top_k=2)
+    return {"docs": docs}
+
+
+def get_retrieval_query_agent(tools: SearchTools, llm: InferenceEngine):
+    return Agent(
+        name="retriever",
+        role="Retrieve relevant documents",
+        input_keys={"original_query", "current_query"},
+        output_schema={"docs": list},
+        allowed_update_keys={"docs"},
+        run_func=partial(retriever_agent_func, tools=tools, llm=llm),
+    )
+
+
+def build_agents(tools: SearchTools, llm: InferenceEngine) -> dict:
+    return {
+        "classifier": classifier_agent,
+        "planner": planner_agent,
+        "query_rewriter": rewrite_query_agent,
+        "retriever": get_retrieval_query_agent(tools=tools, llm=llm),
+        "reranker": reranker_agent,
+        "answer": answer_agent,
+        "verifier": verifier_agent,
+    }
+
+
 def apply_agent_update(state, updated_state, agent: Agent):
     safe_update = {}
 
@@ -301,7 +302,7 @@ def apply_agent_update(state, updated_state, agent: Agent):
             safe_update[key] = value
         else:
             raise ValueError(
-                f"Agent '{agent.name}' tried to update " f"forbidden keys: {key}"
+                f"Agent '{agent.name}' tried to update forbidden keys: {key}"
             )
 
     state.update(safe_update)
@@ -325,17 +326,15 @@ def apply_system_update(state, agent: Agent):
     return state
 
 
-def run_agent(state: RagState) -> RagState:
+def run_agent(state: RagState, agents: dict) -> RagState:
 
     current_agent = "classifier"
 
     while current_agent != END:
-        # Get the agent
+        if current_agent not in agents:
+            raise ValueError(f"Agent is not registered: {current_agent}")
 
-        if current_agent not in AGENTS:
-            raise ValueError("Agent is not registered: {current_agent}")
-
-        agent = AGENTS[current_agent]
+        agent = agents[current_agent]
 
         updated_state = agent.run(state)
 
@@ -372,21 +371,28 @@ def compute_verified(state: dict) -> bool:
     return bool(result)
 
 
-AGENTS = {
-    "classifier": classifier_agent,
-    "planner": planner_agent,
-    "query_rewriter": rewrite_query_agent,
-    "retriever": retriever_agent,
-    "reranker": reranker_agent,
-    "answer": answer_agent,
-    "verifier": verifier_agent,
-}
-
 if __name__ == "__main__":
-    state = create_initial_state("Explain the Java Exception")
+    from minirag.config import get_settings
+    from minirag.embedding import OpenRouterEmbeddingEngine
+    from minirag.vector_store import ChromaVectorStore
 
-    state = run_agent(state)
+    settings = get_settings()
+    embed = OpenRouterEmbeddingEngine(
+        model=settings.openrouter_embed_model, api_key=settings.openrouter_api_key
+    )
+    vstore = ChromaVectorStore(
+        vector_store_path=settings.vector_store_path,
+        collection_name=settings.collection_name,
+    )
+    llm = OpenRouterEngine(
+        model=settings.openrouter_model, api_key=settings.openrouter_api_key
+    )
+
+    tools = SearchTools(embed, vstore)
+    agents = build_agents(tools, llm)
+
+    state = create_initial_state("Explain the Java Exception")
+    state = run_agent(state, agents)
     print(state["answer"])
     print(state["verification_result"])
     print(state["verified"])
-    print(state)
