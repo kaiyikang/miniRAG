@@ -1,6 +1,6 @@
 from functools import partial
+import json
 
-from minirag.agents.workflow.utils import call_llm_json
 from minirag.agents.workflow.state import create_initial_state, RagState, END
 from minirag.agents.workflow.route import route_next
 from minirag.agents.tool import SearchTools
@@ -8,6 +8,13 @@ from minirag.llm_engine import InferenceEngine, OpenRouterEngine
 
 
 class Agent:
+    """A contract executor: limits input, runs run_func, validates output.
+
+    It is deliberately unaware of what run_func needs (llm, tools, or nothing).
+    Dependencies are pre-bound into run_func with functools.partial in
+    build_agents, so run() always calls run_func with just local_input.
+    """
+
     def __init__(
         self, name, role, input_keys, output_schema, allowed_update_keys, run_func
     ):
@@ -15,7 +22,6 @@ class Agent:
         self.role = role
         self.input_keys = input_keys
         self.output_schema = output_schema
-
         self.allowed_update_keys = allowed_update_keys
         self.run_func = run_func
 
@@ -41,8 +47,15 @@ class Agent:
         return True
 
 
+# ---------------------------------------------------------------------------
+# Agent functions. Each declares exactly the dependencies it uses:
+#   - LLM-backed agents take (local_input, llm)
+#   - the retriever takes  (local_input, tools)
+#   - the planner is pure logic: (local_input)
+# build_agents binds those dependencies with partial.
+# ---------------------------------------------------------------------------
 def llm_classifier_agent_func(local_input, llm: InferenceEngine):
-    messages = f"""
+    prompt = f"""
 User query: {local_input["original_query"]}
 
 Only return JSON:
@@ -51,22 +64,11 @@ Only return JSON:
   "classification_reason": "the reason with one sentence"
 }}
 """
-
-    return llm.generate(messages=messages)
-
-
-classifier_agent = Agent(
-    name="classifier",
-    role="Classify the user query",
-    input_keys={"original_query"},
-    output_schema={"task_type": str, "classification_reason": str},
-    allowed_update_keys={"task_type", "classification_reason"},
-    run_func=llm_classifier_agent_func,
-)
+    result = llm.generate(messages=prompt)
+    return json.loads(result["content"])
 
 
 def create_plan_agent_func(local_input: dict):
-    query = local_input["original_query"]
     task_type = local_input["task_type"]
 
     if task_type == "implementation":
@@ -86,17 +88,7 @@ def create_plan_agent_func(local_input: dict):
     return {"plan": plan}
 
 
-planner_agent = Agent(
-    name="planner",
-    role="Break down the user's question into an execution plan",
-    input_keys={"original_query", "task_type"},
-    output_schema={"plan": str},
-    allowed_update_keys={"plan"},
-    run_func=create_plan_agent_func,
-)
-
-
-def rewrite_query_agent_func(local_input: dict) -> dict:
+def rewrite_query_agent_func(local_input: dict, llm: InferenceEngine) -> dict:
     query = local_input["original_query"]
     query_history = "\n".join(
         f"{idx}. {v}" for idx, v in enumerate(local_input["query_history"])
@@ -122,20 +114,11 @@ Only return JSON:
     "current_query": "the rewritten search query"
 }}
 """
-    return call_llm_json(prompt)
+    result = llm.generate(messages=prompt)
+    return json.loads(result["content"])
 
 
-rewrite_query_agent = Agent(
-    name="query_rewriter",
-    role="Rewrite the query for better retrieval",
-    input_keys={"original_query", "query_history", "verification_reason"},
-    output_schema={"current_query": str},
-    allowed_update_keys={"current_query"},
-    run_func=rewrite_query_agent_func,
-)
-
-
-def llm_answer_agent_func(local_input):
+def llm_answer_agent_func(local_input, llm: InferenceEngine):
     query = local_input["original_query"]
     last_chance = (
         local_input["verification_attempts"] >= local_input["max_verification_attempts"]
@@ -166,7 +149,9 @@ Only return JSON:
     "citations": ["<id copied from the documents above>"]
 }}
 """
-    answer_and_citations = call_llm_json(prompt)
+    result = llm.generate(messages=prompt)
+    answer_and_citations = json.loads(result["content"])
+
     # Verification for true citations
     answer_and_citations["citations"] = [
         c for c in answer_and_citations["citations"] if c in docs_ids
@@ -174,22 +159,7 @@ Only return JSON:
     return answer_and_citations
 
 
-answer_agent = Agent(
-    name="answer",
-    role="Generate an answer based on retrieved docs",
-    input_keys={
-        "original_query",
-        "docs",
-        "verification_attempts",
-        "max_verification_attempts",
-    },
-    output_schema={"answer": str, "citations": list},
-    allowed_update_keys={"answer", "citations"},
-    run_func=llm_answer_agent_func,
-)
-
-
-def rerank_documents_agent_func(local_input: dict) -> dict:
+def rerank_documents_agent_func(local_input: dict, llm: InferenceEngine) -> dict:
     query = local_input["original_query"]
     docs = local_input["docs"]
     prompt = f"""
@@ -214,23 +184,11 @@ Only return JSON:
     ]
 }}
 """
-    return call_llm_json(prompt)
+    result = llm.generate(messages=prompt)
+    return json.loads(result["content"])
 
 
-reranker_agent = Agent(
-    name="reranker",
-    role="Re-ranking of retrieved documents",
-    input_keys={
-        "original_query",
-        "docs",
-    },
-    output_schema={"reranked_docs": list},
-    allowed_update_keys={"reranked_docs"},
-    run_func=rerank_documents_agent_func,
-)
-
-
-def verifier_agent_func(local_input):
+def verifier_agent_func(local_input, llm: InferenceEngine):
     query = local_input["original_query"]
     docs = local_input["docs"]
     answer = local_input["answer"]
@@ -252,17 +210,8 @@ Only return JSON:
     "verification_reason": "the reason with one sentence"
 }}
 """
-    return call_llm_json(prompt)
-
-
-verifier_agent = Agent(
-    name="verifier",
-    role="Verify whether the answer is supported by documents",
-    input_keys={"original_query", "docs", "answer", "citations"},
-    output_schema={"verification_result": bool, "verification_reason": str},
-    allowed_update_keys={"verification_result", "verification_reason"},
-    run_func=verifier_agent_func,
-)
+    result = llm.generate(messages=prompt)
+    return json.loads(result["content"])
 
 
 def retriever_agent_func(local_input, tools: SearchTools):
@@ -271,26 +220,71 @@ def retriever_agent_func(local_input, tools: SearchTools):
     return {"docs": docs}
 
 
-def get_retrieval_query_agent(tools: SearchTools, llm: InferenceEngine):
-    return Agent(
-        name="retriever",
-        role="Retrieve relevant documents",
-        input_keys={"original_query", "current_query"},
-        output_schema={"docs": list},
-        allowed_update_keys={"docs"},
-        run_func=partial(retriever_agent_func, tools=tools, llm=llm),
-    )
-
-
 def build_agents(tools: SearchTools, llm: InferenceEngine) -> dict:
+    """Assemble the agent registry, binding each run_func's dependencies with
+    partial. The Agent objects themselves never see llm or tools."""
     return {
-        "classifier": classifier_agent,
-        "planner": planner_agent,
-        "query_rewriter": rewrite_query_agent,
-        "retriever": get_retrieval_query_agent(tools=tools, llm=llm),
-        "reranker": reranker_agent,
-        "answer": answer_agent,
-        "verifier": verifier_agent,
+        "classifier": Agent(
+            name="classifier",
+            role="Classify the user query",
+            input_keys={"original_query"},
+            output_schema={"task_type": str, "classification_reason": str},
+            allowed_update_keys={"task_type", "classification_reason"},
+            run_func=partial(llm_classifier_agent_func, llm=llm),
+        ),
+        "planner": Agent(
+            name="planner",
+            role="Break down the user's question into an execution plan",
+            input_keys={"original_query", "task_type"},
+            output_schema={"plan": str},
+            allowed_update_keys={"plan"},
+            run_func=create_plan_agent_func,  # pure logic, no dependency
+        ),
+        "query_rewriter": Agent(
+            name="query_rewriter",
+            role="Rewrite the query for better retrieval",
+            input_keys={"original_query", "query_history", "verification_reason"},
+            output_schema={"current_query": str},
+            allowed_update_keys={"current_query"},
+            run_func=partial(rewrite_query_agent_func, llm=llm),
+        ),
+        "retriever": Agent(
+            name="retriever",
+            role="Retrieve relevant documents",
+            input_keys={"original_query", "current_query"},
+            output_schema={"docs": list},
+            allowed_update_keys={"docs"},
+            run_func=partial(retriever_agent_func, tools=tools),
+        ),
+        "reranker": Agent(
+            name="reranker",
+            role="Re-ranking of retrieved documents",
+            input_keys={"original_query", "docs"},
+            output_schema={"reranked_docs": list},
+            allowed_update_keys={"reranked_docs"},
+            run_func=partial(rerank_documents_agent_func, llm=llm),
+        ),
+        "answer": Agent(
+            name="answer",
+            role="Generate an answer based on retrieved docs",
+            input_keys={
+                "original_query",
+                "docs",
+                "verification_attempts",
+                "max_verification_attempts",
+            },
+            output_schema={"answer": str, "citations": list},
+            allowed_update_keys={"answer", "citations"},
+            run_func=partial(llm_answer_agent_func, llm=llm),
+        ),
+        "verifier": Agent(
+            name="verifier",
+            role="Verify whether the answer is supported by documents",
+            input_keys={"original_query", "docs", "answer", "citations"},
+            output_schema={"verification_result": bool, "verification_reason": str},
+            allowed_update_keys={"verification_result", "verification_reason"},
+            run_func=partial(verifier_agent_func, llm=llm),
+        ),
     }
 
 
