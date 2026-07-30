@@ -49,7 +49,7 @@ def route_next(current_agent: str, state: dict) -> RouteDecision:
         return _go_to("answer", "retrieval_exhausted")
 
     if current_agent == "reranker":
-        if state["reranked_docs"]:
+        if state["docs"]:
             return _go_to("answer", "documents_reranked")
         return _go_to("query_rewriter", "no_relevant_documents")
 

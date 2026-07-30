@@ -1,6 +1,6 @@
 from functools import partial
 import json
-
+from collections import defaultdict
 from minirag.agents.workflow.state import create_initial_state, RagState, END
 from minirag.agents.workflow.route import route_next
 from minirag.agents.tool import SearchTools
@@ -64,7 +64,7 @@ Only return JSON:
   "classification_reason": "the reason with one sentence"
 }}
 """
-    result = llm.generate(messages=prompt)
+    result = llm.generate(messages=prompt, reasoning=False)
     return json.loads(result["content"])
 
 
@@ -114,7 +114,7 @@ Only return JSON:
     "current_query": "the rewritten search query"
 }}
 """
-    result = llm.generate(messages=prompt)
+    result = llm.generate(messages=prompt, reasoning=False)
     return json.loads(result["content"])
 
 
@@ -149,7 +149,7 @@ Only return JSON:
     "citations": ["<id copied from the documents above>"]
 }}
 """
-    result = llm.generate(messages=prompt)
+    result = llm.generate(messages=prompt, reasoning=False)
     answer_and_citations = json.loads(result["content"])
 
     # Verification for true citations
@@ -161,7 +161,9 @@ Only return JSON:
 
 def rerank_documents_agent_func(local_input: dict, llm: InferenceEngine) -> dict:
     query = local_input["original_query"]
-    docs = local_input["docs"]
+    docs = local_input["docs"]  # list[dict], each with full "text"
+    by_id = {d["id"]: d for d in docs}
+
     prompt = f"""
 You grade each document's relevance to the user query on a 1-5 scale:
 5 ESSENTIAL    - answer is impossible without it (direct answer, definition, or prerequisite).
@@ -184,8 +186,17 @@ Only return JSON:
     ]
 }}
 """
-    result = llm.generate(messages=prompt)
-    return json.loads(result["content"])
+    result = llm.generate(messages=prompt, reasoning=False)
+    graded = json.loads(result["content"])["reranked_docs"]  # [{"id":.., "score":..}]
+
+    # hallucination
+    return {
+        "docs": [
+            by_id.get(grad["id"])
+            for grad in graded
+            if by_id.get(grad["id"]) is not None
+        ]
+    }
 
 
 def verifier_agent_func(local_input, llm: InferenceEngine):
@@ -210,7 +221,7 @@ Only return JSON:
     "verification_reason": "the reason with one sentence"
 }}
 """
-    result = llm.generate(messages=prompt)
+    result = llm.generate(messages=prompt, reasoning=False)
     return json.loads(result["content"])
 
 
@@ -260,8 +271,8 @@ def build_agents(tools: SearchTools, llm: InferenceEngine) -> dict:
             name="reranker",
             role="Re-ranking of retrieved documents",
             input_keys={"original_query", "docs"},
-            output_schema={"reranked_docs": list},
-            allowed_update_keys={"reranked_docs"},
+            output_schema={"docs": list},
+            allowed_update_keys={"docs"},
             run_func=partial(rerank_documents_agent_func, llm=llm),
         ),
         "answer": Agent(

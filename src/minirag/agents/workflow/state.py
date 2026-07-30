@@ -20,8 +20,7 @@ class RagState(VerificationState):
     classification_reason: Optional[str]
     task_type: Optional[str]
     plan: Optional[str]
-    docs: List[str]
-    reranked_docs: List[dict]
+    docs: List[dict]
     answer: Optional[str]
 
     # Process Control for Orchestrator
@@ -45,7 +44,6 @@ def create_initial_state(query="explain what is the multi agent RAG") -> RagStat
         "task_type": None,
         "plan": None,
         "docs": [],
-        "reranked_docs": [],
         "answer": None,
         "verification_attempts": 0,
         "max_verification_attempts": 3,
