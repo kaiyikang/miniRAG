@@ -5,6 +5,7 @@ from minirag.agents.workflow.state import create_initial_state, RagState, END
 from minirag.agents.workflow.route import route_next
 from minirag.agents.tool import SearchTools
 from minirag.llm_engine import InferenceEngine, OpenRouterEngine
+from langfuse import get_client, observe
 
 
 class Agent:
@@ -25,7 +26,10 @@ class Agent:
         self.allowed_update_keys = allowed_update_keys
         self.run_func = run_func
 
+    @observe(name="agent_step")
     def run(self, state):
+        get_client().update_current_span(name=self.name)
+
         # limit input
         local_input = {key: state.get(key) for key in self.input_keys}
 
@@ -331,9 +335,12 @@ def apply_system_update(state, agent: Agent):
     return state
 
 
+@observe(name="workflow_rag")
 def run_agent(state: RagState, agents: dict) -> RagState:
 
     current_agent = "classifier"
+
+    get_client().update_current_span(input={"query": state["original_query"]})
 
     while current_agent != END:
         if current_agent not in agents:
@@ -363,7 +370,9 @@ def run_agent(state: RagState, agents: dict) -> RagState:
 
         if decision["exit_reason"] is not None:
             state["exit_reason"] = decision["exit_reason"]
-
+    get_client().update_current_span(
+        output={"answer": state["answer"], "verified": state["verified"]}
+    )
     return state
 
 
