@@ -1,8 +1,8 @@
 from functools import partial
 import json
 from collections import defaultdict
-from minirag.agents.workflow.state import create_initial_state, RagState, END
-from minirag.agents.workflow.route import route_next
+from minirag.agents.graph.state import create_initial_state, RagState, END
+from minirag.agents.graph.route import route_next
 from minirag.agents.tool import SearchTools
 from minirag.llm_engine import InferenceEngine, OpenRouterEngine
 from langfuse import get_client, observe
@@ -410,3 +410,4 @@ if __name__ == "__main__":
     print(state["answer"])
     print(state["verification_result"])
     print(state["verified"])
+    get_client().flush()

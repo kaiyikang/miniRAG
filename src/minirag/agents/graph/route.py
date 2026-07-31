@@ -1,5 +1,5 @@
 from typing import TypedDict, Optional
-from minirag.agents.workflow.state import END
+from minirag.agents.graph.state import END
 
 
 class RouteDecision(TypedDict):

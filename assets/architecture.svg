@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="810" viewBox="0 0 1200 810" role="img" aria-labelledby="architecture-title architecture-description">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="935" viewBox="0 0 1200 935" role="img" aria-labelledby="architecture-title architecture-description">
   <title id="architecture-title">miniRAG Architecture</title>
-  <desc id="architecture-description">Five-layer architecture showing user interfaces, application services, RAG and agent logic, data storage, and external model services.</desc>
+  <desc id="architecture-description">Five-layer architecture: user interfaces, application services, the AI logic layer (production RAG pipeline plus two agent lines — a deterministic multi-step workflow and an autonomous agent loop), data storage, and external model/observability services.</desc>
 
   <defs>
     <linearGradient id="user-layer" x1="0" y1="0" x2="1" y2="1">
@@ -26,21 +26,27 @@
     <filter id="layer-shadow" x="-2%" y="-5%" width="104%" height="110%">
       <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#111827" flood-opacity="0.08"/>
     </filter>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/>
+    </marker>
     <style>
       text { font-family: Arial, Helvetica, sans-serif; fill: #1f2937; }
       .diagram-title { font-size: 22px; font-weight: 700; text-anchor: middle; }
       .layer-title { font-size: 14px; font-weight: 700; text-anchor: middle; }
       .group-title { font-size: 12px; font-weight: 700; text-anchor: middle; fill: #374151; }
+      .line-title { font-size: 11px; font-weight: 700; text-anchor: middle; fill: #15803d; }
       .box-title { font-size: 13px; font-weight: 600; text-anchor: middle; }
       .box-detail { font-size: 11px; font-weight: 400; text-anchor: middle; fill: #6b7280; }
       .agent-label { font-size: 11px; font-weight: 600; text-anchor: middle; fill: #4b5563; }
+      .flow-label { font-size: 10px; font-weight: 400; text-anchor: middle; fill: #6b7280; }
       .box { fill: #ffffff; stroke: #d1d5db; stroke-width: 1; }
       .highlight-box { fill: #f9fafb; stroke: #6b7280; stroke-width: 2; }
       .subgroup { fill: #ffffff; fill-opacity: 0.65; stroke: #d1d5db; stroke-width: 1; }
+      .connector { stroke: #6b7280; stroke-width: 1.5; fill: none; }
     </style>
   </defs>
 
-  <rect x="1" y="1" width="1198" height="808" rx="8" fill="#fafbfc" stroke="#e5e7eb"/>
+  <rect x="1" y="1" width="1198" height="933" rx="8" fill="#fafbfc" stroke="#e5e7eb"/>
   <text class="diagram-title" x="600" y="36">miniRAG Architecture</text>
 
   <g id="interface-layer" filter="url(#layer-shadow)">
@@ -78,68 +84,97 @@
   </g>
 
   <g id="logic-layer" filter="url(#layer-shadow)">
-    <rect x="20" y="315" width="1160" height="210" rx="8" fill="url(#logic-layer)" stroke="#16a34a" stroke-width="2"/>
-    <text class="layer-title" x="600" y="340" fill="#15803d">AI / Logic Layer</text>
+    <rect x="20" y="315" width="1160" height="340" rx="8" fill="url(#logic-layer)" stroke="#16a34a" stroke-width="2"/>
+    <text class="layer-title" x="600" y="339" fill="#15803d">AI / Logic Layer</text>
 
-    <rect class="subgroup" x="40" y="354" width="700" height="151" rx="6"/>
-    <text class="group-title" x="390" y="378">RAG Pipeline (production)</text>
+    <!-- Production RAG pipeline -->
+    <rect class="subgroup" x="40" y="352" width="1120" height="104" rx="6"/>
+    <text class="group-title" x="600" y="374">RAG Pipeline (production) — src/minirag/rag.py</text>
 
-    <rect class="box" x="55" y="391" width="210" height="94" rx="5"/>
-    <text class="box-title" x="160" y="424">Query Transform</text>
-    <text class="box-detail" x="160" y="447">Identity / HyDE</text>
+    <rect class="box" x="60" y="386" width="340" height="58" rx="5"/>
+    <text class="box-title" x="230" y="410">Query Transform</text>
+    <text class="box-detail" x="230" y="429">Identity / HyDE</text>
 
-    <rect class="box" x="285" y="391" width="210" height="94" rx="5"/>
-    <text class="box-title" x="390" y="418">Retrieve + Rerank</text>
-    <text class="box-detail" x="390" y="441">Chroma top-k</text>
-    <text class="box-detail" x="390" y="459">Vector / CrossEncoder</text>
+    <rect class="box" x="430" y="386" width="340" height="58" rx="5"/>
+    <text class="box-title" x="600" y="410">Retrieve + Rerank</text>
+    <text class="box-detail" x="600" y="429">Chroma top-k · Vector / CrossEncoder</text>
 
-    <rect class="box" x="515" y="391" width="210" height="94" rx="5"/>
-    <text class="box-title" x="620" y="424">Generate</text>
-    <text class="box-detail" x="620" y="447">chat history, event stream</text>
+    <rect class="box" x="800" y="386" width="340" height="58" rx="5"/>
+    <text class="box-title" x="970" y="410">Generate</text>
+    <text class="box-detail" x="970" y="429">chat history, event stream</text>
 
-    <rect class="subgroup" x="760" y="354" width="400" height="151" rx="6"/>
-    <text class="group-title" x="960" y="378">agent101 (experimental orchestrator)</text>
+    <!-- Agent system: two lines -->
+    <rect class="subgroup" x="40" y="470" width="1120" height="172" rx="6"/>
+    <text class="group-title" x="600" y="491">Agent System — src/minirag/agents</text>
 
-    <rect class="box" x="775" y="391" width="82" height="94" rx="5"/>
-    <text class="agent-label" x="816" y="442">Classifier</text>
+    <!-- Line 1: deterministic multi-step workflow -->
+    <text class="line-title" x="405" y="512">Workflow · deterministic multi-step (LangGraph-style)</text>
+    <rect class="box" x="60" y="530" width="100" height="60" rx="5"/>
+    <text class="agent-label" x="110" y="564">classify</text>
+    <rect class="box" x="180" y="530" width="100" height="60" rx="5"/>
+    <text class="agent-label" x="230" y="564">rewrite</text>
+    <rect class="box" x="300" y="530" width="100" height="60" rx="5"/>
+    <text class="agent-label" x="350" y="564">retrieve</text>
+    <rect class="box" x="420" y="530" width="100" height="60" rx="5"/>
+    <text class="agent-label" x="470" y="564">rerank</text>
+    <rect class="box" x="540" y="530" width="100" height="60" rx="5"/>
+    <text class="agent-label" x="590" y="564">answer</text>
+    <rect class="box" x="660" y="530" width="100" height="60" rx="5"/>
+    <text class="agent-label" x="710" y="564">verify</text>
+    <!-- forward connectors -->
+    <line class="connector" x1="160" y1="560" x2="178" y2="560" marker-end="url(#arrow)"/>
+    <line class="connector" x1="280" y1="560" x2="298" y2="560" marker-end="url(#arrow)"/>
+    <line class="connector" x1="400" y1="560" x2="418" y2="560" marker-end="url(#arrow)"/>
+    <line class="connector" x1="520" y1="560" x2="538" y2="560" marker-end="url(#arrow)"/>
+    <line class="connector" x1="640" y1="560" x2="658" y2="560" marker-end="url(#arrow)"/>
+    <!-- retry feedback loop below the row: verify -> rewrite -->
+    <path class="connector" d="M 710 590 C 710 614, 230 614, 230 590" marker-end="url(#arrow)" stroke-dasharray="4 3"/>
+    <text class="flow-label" x="470" y="633">retry on empty / unverified (route.py guards)</text>
 
-    <rect class="box" x="871" y="391" width="82" height="94" rx="5"/>
-    <text class="agent-label" x="912" y="442">Retriever</text>
-
-    <rect class="box" x="967" y="391" width="82" height="94" rx="5"/>
-    <text class="agent-label" x="1008" y="442">Answer</text>
-
-    <rect class="box" x="1063" y="391" width="82" height="94" rx="5"/>
-    <text class="agent-label" x="1104" y="442">Verifier</text>
+    <!-- Line 2: autonomous agent loop -->
+    <text class="line-title" x="960" y="512">Agent Loop · autonomous (ReAct-style)</text>
+    <rect class="box" x="795" y="530" width="150" height="60" rx="5"/>
+    <text class="box-title" x="870" y="555">Policy (LLM)</text>
+    <text class="box-detail" x="870" y="573">decides next action</text>
+    <rect class="box" x="985" y="530" width="150" height="60" rx="5"/>
+    <text class="box-title" x="1060" y="555">Tools</text>
+    <text class="box-detail" x="1060" y="573">search / inspect / finish</text>
+    <line class="connector" x1="945" y1="555" x2="983" y2="555" marker-end="url(#arrow)"/>
+    <path class="connector" d="M 1060 590 C 1060 614, 870 614, 870 590" marker-end="url(#arrow)"/>
+    <text class="flow-label" x="965" y="633">observe &amp; loop until finish / max_steps</text>
   </g>
 
   <g id="data-layer" filter="url(#layer-shadow)">
-    <rect x="20" y="540" width="1160" height="115" rx="8" fill="url(#data-layer)" stroke="#db2777" stroke-width="2"/>
-    <text class="layer-title" x="600" y="564" fill="#9d174d">Data Layer</text>
+    <rect x="20" y="670" width="1160" height="115" rx="8" fill="url(#data-layer)" stroke="#db2777" stroke-width="2"/>
+    <text class="layer-title" x="600" y="694" fill="#9d174d">Data Layer</text>
 
-    <rect class="box" x="40" y="577" width="350" height="58" rx="5"/>
-    <text class="box-title" x="215" y="601">Chroma Vector Store</text>
-    <text class="box-detail" x="215" y="620">persistent, data/chroma/</text>
+    <rect class="box" x="40" y="707" width="350" height="58" rx="5"/>
+    <text class="box-title" x="215" y="731">Chroma Vector Store</text>
+    <text class="box-detail" x="215" y="750">persistent, data/chroma/</text>
 
-    <rect class="box" x="425" y="577" width="350" height="58" rx="5"/>
-    <text class="box-title" x="600" y="601">Document Corpus</text>
-    <text class="box-detail" x="600" y="620">data/raw/ markdown</text>
+    <rect class="box" x="425" y="707" width="350" height="58" rx="5"/>
+    <text class="box-title" x="600" y="731">Document Corpus</text>
+    <text class="box-detail" x="600" y="750">data/raw/ markdown</text>
 
-    <rect class="box" x="810" y="577" width="350" height="58" rx="5"/>
-    <text class="box-title" x="985" y="601">Embedding Cache</text>
-    <text class="box-detail" x="985" y="620">temp/, MiniLM-L6-v2</text>
+    <rect class="box" x="810" y="707" width="350" height="58" rx="5"/>
+    <text class="box-title" x="985" y="731">Embedding Cache</text>
+    <text class="box-detail" x="985" y="750">temp/, MiniLM-L6-v2</text>
   </g>
 
   <g id="external-layer" filter="url(#layer-shadow)">
-    <rect x="20" y="670" width="1160" height="115" rx="8" fill="url(#external-layer)" stroke="#d1d5db" stroke-width="2" stroke-dasharray="6 5"/>
-    <text class="layer-title" x="600" y="694" fill="#6b7280">External Services</text>
+    <rect x="20" y="800" width="1160" height="115" rx="8" fill="url(#external-layer)" stroke="#d1d5db" stroke-width="2" stroke-dasharray="6 5"/>
+    <text class="layer-title" x="600" y="824" fill="#6b7280">External Services</text>
 
-    <rect class="box" x="40" y="707" width="550" height="58" rx="5"/>
-    <text class="box-title" x="315" y="731">OpenRouter API</text>
-    <text class="box-detail" x="315" y="750">LLM (glm-5.2) + Embeddings (gemini-embedding-2)</text>
+    <rect class="box" x="40" y="837" width="360" height="58" rx="5"/>
+    <text class="box-title" x="220" y="861">OpenRouter API</text>
+    <text class="box-detail" x="220" y="880">LLM (glm-5.2) + Embeddings (gemini-embedding-2)</text>
 
-    <rect class="box" x="610" y="707" width="550" height="58" rx="5"/>
-    <text class="box-title" x="885" y="731">sentence-transformers</text>
-    <text class="box-detail" x="885" y="750">local fallback embeddings</text>
+    <rect class="box" x="420" y="837" width="360" height="58" rx="5"/>
+    <text class="box-title" x="600" y="861">sentence-transformers</text>
+    <text class="box-detail" x="600" y="880">local fallback embeddings</text>
+
+    <rect class="box" x="800" y="837" width="360" height="58" rx="5"/>
+    <text class="box-title" x="980" y="861">Langfuse (self-hosted)</text>
+    <text class="box-detail" x="980" y="880">observability · @observe traces</text>
   </g>
 </svg>
