@@ -3,6 +3,8 @@ from minirag.llm_engine import OpenRouterEngine, InferenceEngine
 from minirag.agents.tool import SearchTools
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Literal
+from tenacity import retry, stop_after_attempt, retry_if_exception_type
+from langfuse import get_client, observe
 import json
 
 
@@ -126,10 +128,69 @@ def format_inspected(inspected: dict[str, str]) -> str:
     )
 
 
+@dataclass
+class RetrieverLimits:
+    max_steps: int = 8
+    max_searches: int = 4
+    max_inspections: int = 4
+    max_same_action: int = 1  # how many times an identical search may repeat
+
+
+def count_actions(state: RetrieverState, action_type: type) -> int:
+    """How many steps so far used this action type."""
+    return sum(isinstance(step.action, action_type) for step in state.steps)
+
+
+def validate_action(
+    action: AgentAction,
+    state: RetrieverState,
+    limits: RetrieverLimits,
+) -> str | None:
+    """Deterministic gate between policy.decide() and _execute().
+
+    Return a short rejection-reason string (e.g. "duplicate_search") if the
+    action breaks a countable budget/guard, or None if it may execute.
+
+    Guards to implement (each is pure counting over state.steps, no LLM):
+      - SearchAction: search budget exhausted? (count_actions vs max_searches)
+                      identical query already issued? (vs max_same_action)
+      - InspectAction: inspection budget exhausted? (vs max_inspections)
+                       chunk already in state.inspected_documents?
+      - FinishAction / anything else: no deterministic guard -> None
+    """
+    if isinstance(action, SearchAction):
+        if count_actions(state, SearchAction) >= limits.max_searches:
+            return "search_budget_exhausted"
+
+        same_query = sum(
+            1
+            for step in state.steps
+            if isinstance(step.action, SearchAction)
+            and step.action.query == action.query
+        )
+
+        if same_query >= limits.max_same_action:
+            return "duplicate_search"
+
+    if isinstance(action, InspectAction):
+        if count_actions(state, InspectAction) >= limits.max_inspections:
+            return "inspection_budget_exhausted"
+
+        if action.chunk_id in state.inspected_documents:
+            return "document_already_inspected"
+
+    return None
+
+
 class RetrieverPolicy:
     def __init__(self, llm: InferenceEngine):
         self._llm = llm
 
+    @retry(
+        retry=retry_if_exception_type(json.JSONDecodeError),
+        stop=stop_after_attempt(3),
+        reraise=True,
+    )
     def decide(self, state: RetrieverState) -> AgentAction:
         prompt = self._build_prompt(state)
 
@@ -189,32 +250,60 @@ Return structured JSON only.
 
 class RetrieverAgent:
     def __init__(
-        self, policy: RetrieverPolicy, tools: RetrievalTools, max_steps: int = 8
+        self,
+        policy: RetrieverPolicy,
+        tools: RetrievalTools,
+        limits: RetrieverLimits | None = None,
     ):
         self.policy = policy
         self.tools = tools
-        self.max_steps = max_steps
+        self.limits = limits or RetrieverLimits()
 
+    @observe(name="retriever_loop")
     def run(self, goal: str, verbose: bool = False) -> RetrieverState:
+        get_client().update_current_span(input={"goal": goal})
         state = RetrieverState(goal=goal)
 
         while not state.finished:
-            if len(state.steps) >= self.max_steps:
+            if len(state.steps) >= self.limits.max_steps:
                 state.finished = True
                 state.finish_reason = "max_steps_reached"
                 break
 
-            action = self.policy.decide(state)
-            observation = self._execute(action, state)
+            observation = self._run_step(state)
 
             if verbose:
                 print(
-                    f"[step {len(state.steps) + 1}] action={action} observation={observation}"
+                    f"[step {len(state.steps)}] action={state.steps[-1].action} observation={observation}"
                 )
 
-            state.steps.append(Step(action=action, observation=observation))
-
+        get_client().update_current_span(
+            output={
+                "finished": state.finished,
+                "finish_reason": state.finish_reason,
+                "final_document_ids": state.final_document_ids,
+                "steps": len(state.steps),
+            }
+        )
         return state
+
+    @observe(name="step")
+    def _run_step(self, state: RetrieverState) -> Any:
+        action = self.policy.decide(state)
+
+        rejection = validate_action(action, state, self.limits)
+        if rejection:
+            observation = {"status": "rejected", "reason": rejection}
+        else:
+            observation = self._execute(action, state)
+
+        # TODO(human): record this step onto the current Langfuse span via
+        # get_client().update_current_span(...), so the trace is self-explaining
+        # without prints. Decide what belongs in input / output / metadata
+        # (the action + its args, the observation status, any rejection reason).
+
+        state.steps.append(Step(action=action, observation=observation))
+        return observation
 
     def _execute(self, action: AgentAction, state: RetrieverState):
         if isinstance(action, SearchAction):
@@ -256,6 +345,7 @@ if __name__ == "__main__":
     from minirag.embedding import OpenRouterEmbeddingEngine
     from minirag.vector_store import ChromaVectorStore
 
+    # Dependency Injection
     settings = get_settings()
     embed = OpenRouterEmbeddingEngine(
         model=settings.openrouter_embed_model, api_key=settings.openrouter_api_key
@@ -268,11 +358,14 @@ if __name__ == "__main__":
         model=settings.openrouter_model, api_key=settings.openrouter_api_key
     )
 
-    goal = sys.argv[1] if len(sys.argv) > 1 else "lead climbing?"
+    goal = sys.argv[1] if len(sys.argv) > 1 else "what is the lead climbing?"
 
     tools = RetrievalTools(SearchTools(embed, vstore))
     agent = RetrieverAgent(policy=RetrieverPolicy(llm), tools=tools)
     final_state = agent.run(goal, verbose=True)
+
+    # Traces are buffered; flush before the short-lived process exits.
+    get_client().flush()
 
     print("finished:", final_state.finished, "reason:", final_state.finish_reason)
     print("steps taken:", len(final_state.steps))
