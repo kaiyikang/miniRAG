@@ -1,0 +1,14 @@
+[
+  {"event_id": "EV-001", "ticket_id": "T-101", "event_type": "created", "note": "Customer reports repeated E104 on checkout", "severity": "high", "event_timestamp": "2026-07-20T09:12:00"},
+  {"event_id": "EV-002", "ticket_id": "T-101", "event_type": "comment", "note": "Confirmed upstream retry loop hammering the gateway", "severity": "high", "event_timestamp": "2026-07-20T10:30:00"},
+  {"event_id": "EV-003", "ticket_id": "T-101", "event_type": "status_change", "note": "Moved to in_progress, engaging capacity team", "severity": "high", "event_timestamp": "2026-07-20T11:40:00"},
+  {"event_id": "EV-011", "ticket_id": "T-101", "event_type": "comment", "note": "Exponential backoff deployed, monitoring", "severity": "high", "event_timestamp": "2026-07-20T14:55:00"},
+  {"event_id": "EV-004", "ticket_id": "T-102", "event_type": "created", "note": "Region EU unable to authenticate, widespread E301", "severity": "critical", "event_timestamp": "2026-07-21T14:05:00"},
+  {"event_id": "EV-005", "ticket_id": "T-102", "event_type": "comment", "note": "NTP skew detected on two auth nodes", "severity": "critical", "event_timestamp": "2026-07-21T15:20:00"},
+  {"event_id": "EV-006", "ticket_id": "T-104", "event_type": "created", "note": "Sporadic E301 after key rotation", "severity": "critical", "event_timestamp": "2026-07-22T03:15:00"},
+  {"event_id": "EV-007", "ticket_id": "T-104", "event_type": "comment", "note": "Key rotated without a dual-key overlap window", "severity": "critical", "event_timestamp": "2026-07-22T04:02:00"},
+  {"event_id": "EV-008", "ticket_id": "T-105", "event_type": "created", "note": "Circuit breaker open to fraud-check downstream", "severity": "high", "event_timestamp": "2026-07-22T16:47:00"},
+  {"event_id": "EV-009", "ticket_id": "T-103", "event_type": "created", "note": "Search quota exceeded during load test", "severity": "medium", "event_timestamp": "2026-07-19T08:30:00"},
+  {"event_id": "EV-010", "ticket_id": "T-103", "event_type": "status_change", "note": "Resolved after backoff tuning", "severity": "medium", "event_timestamp": "2026-07-19T13:10:00"},
+  {"event_id": "EV-012", "ticket_id": "T-999", "event_type": "created", "note": "Event references a ticket absent from master data", "severity": "low", "event_timestamp": "2026-07-25T00:00:00"}
+]

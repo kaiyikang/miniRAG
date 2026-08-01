@@ -1,0 +1,11 @@
+ticket_id,service,error_code,priority,status,created_at,assignee
+T-101,payment-gateway,E104,high,open,2026-07-20T09:12:00,alice
+T-101,payment-gateway,E104,high,in_progress,2026-07-20T11:40:00,alice
+T-102,auth-service,E301,critical,in_progress,2026-07-21T14:05:00,bob
+T-103,search-index,E104,medium,resolved,2026-07-19T08:30:00,carol
+T-104,auth-service,E301,critical,open,2026-07-22T03:15:00,bob
+T-105,payment-gateway,E402,high,open,2026-07-22T16:47:00,dan
+T-106,,E205,medium,open,2026-07-23T10:00:00,alice
+T-107,search-index,,low,open,2026-07-23T12:20:00,carol
+T-108,payment-gateway,E205,high,opne,2026-07-24T09:00:00,dan
+T-109,auth-service,E301,medium,resolved,2026-07-18T07:00:00,bob
