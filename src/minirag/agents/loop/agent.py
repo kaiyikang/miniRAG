@@ -1,7 +1,7 @@
 from minirag.types import SearchedChunk
 from minirag.llm_engine import OpenRouterEngine, InferenceEngine
 from minirag.agents.tool import SearchTools
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Literal
 from tenacity import retry, stop_after_attempt, retry_if_exception_type
 from langfuse import get_client, observe
@@ -12,6 +12,7 @@ import json
 class SearchAction:
     type: Literal["search"]
     query: str
+    method: Literal["vector", "keyword"] = "vector"
     top_k: int = 5
 
 
@@ -37,9 +38,10 @@ AGENT_ACTION_SCHEMA: dict[str, Any] = {
             "properties": {
                 "type": {"const": "search"},
                 "query": {"type": "string"},
+                "method": {"enum": ["vector", "keyword"]},
                 "top_k": {"type": "integer", "minimum": 1, "maximum": 10},
             },
-            "required": ["type", "query", "top_k"],
+            "required": ["type", "query", "method", "top_k"],
             "additionalProperties": False,
         },
         {
@@ -69,7 +71,9 @@ class RetrievalTools:
     def __init__(self, tools: SearchTools):
         self._tools = tools
 
-    def search(self, query: str, top_k: int) -> list[SearchedChunk]:
+    def search(self, query: str, method: str, top_k: int) -> list[SearchedChunk]:
+        if method == "keyword":
+            return self._tools.keyword_search(query, top_k)
         return self._tools.vector_search(query, top_k)
 
     def inspect(self, chunk_id: str) -> str:
@@ -167,6 +171,7 @@ def validate_action(
             for step in state.steps
             if isinstance(step.action, SearchAction)
             and step.action.query == action.query
+            and step.action.method == action.method
         )
 
         if same_query >= limits.max_same_action:
@@ -180,6 +185,22 @@ def validate_action(
             return "document_already_inspected"
 
     return None
+
+
+class CompletionPolicy:
+    def can_finish(self, state: RetrieverState) -> tuple[bool, str]:
+        """Return (allowed, reason). Called before FinishAction takes effect.
+
+        Decide the *minimum* bar for stopping — e.g. at least one inspected
+        document, or some source diversity. Return (False, "<why_not>") to
+        veto (that reason is fed back to the model), or (True, "<why_ok>").
+        """
+        if len(state.inspected_documents) == 0:
+            return False, "no_document_inspected"
+
+        if len(state.inspected_documents) < 2:
+            return False, "insufficient_source_diversity"
+        return True, "minimum_requirements_satisfied"
 
 
 class RetrieverPolicy:
@@ -233,7 +254,10 @@ Inspected documents:
 Choose exactly one next action:
 
 1. search
-   Use when more or different evidence is needed.
+   Use when more or different evidence is needed. Choose a method:
+   - "vector": semantic similarity. Good default for conceptual questions.
+   - "keyword": exact term overlap. Switch to this when vector search misses
+     proper nouns, names, or specific terms.
 
 2. inspect
    Use when a candidate document appears relevant and must be
@@ -254,10 +278,12 @@ class RetrieverAgent:
         policy: RetrieverPolicy,
         tools: RetrievalTools,
         limits: RetrieverLimits | None = None,
+        completion_policy: CompletionPolicy | None = None,
     ):
         self.policy = policy
         self.tools = tools
         self.limits = limits or RetrieverLimits()
+        self.completion_policy = completion_policy or CompletionPolicy()
 
     @observe(name="retriever_loop")
     def run(self, goal: str, verbose: bool = False) -> RetrieverState:
@@ -297,17 +323,26 @@ class RetrieverAgent:
         else:
             observation = self._execute(action, state)
 
-        # TODO(human): record this step onto the current Langfuse span via
-        # get_client().update_current_span(...), so the trace is self-explaining
-        # without prints. Decide what belongs in input / output / metadata
-        # (the action + its args, the observation status, any rejection reason).
+        get_client().update_current_span(
+            input=asdict(action),
+            output=self._compact(observation),
+            metadata={"status": observation["status"]},
+        )
 
         state.steps.append(Step(action=action, observation=observation))
         return observation
 
-    def _execute(self, action: AgentAction, state: RetrieverState):
+    def _compact(self, observation: dict) -> dict:
+        if "result" in observation:
+            return {
+                **observation,
+                "results": [c.chunk_id for c in observation["results"]],
+            }
+        return observation
+
+    def _execute(self, action: AgentAction, state: RetrieverState) -> dict:
         if isinstance(action, SearchAction):
-            results = self.tools.search(action.query, action.top_k)
+            results = self.tools.search(action.query, action.method, action.top_k)
 
             for result in results:
                 state.candidate_documents[result.chunk_id] = result
@@ -330,6 +365,11 @@ class RetrieverAgent:
             }
 
         if isinstance(action, FinishAction):
+            # In case the LLM gives the answer directly without any search
+            allowed, reason = self.completion_policy.can_finish(state)
+            if not allowed:
+                return {"status": "rejected", "reason": reason}
+
             state.finished = True
             state.finish_reason = action.reason
             state.final_document_ids = list(state.inspected_documents.keys())
@@ -362,7 +402,7 @@ if __name__ == "__main__":
 
     tools = RetrievalTools(SearchTools(embed, vstore))
     agent = RetrieverAgent(policy=RetrieverPolicy(llm), tools=tools)
-    final_state = agent.run(goal, verbose=True)
+    final_state = agent.run(goal, verbose=False)
 
     # Traces are buffered; flush before the short-lived process exits.
     get_client().flush()

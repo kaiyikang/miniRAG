@@ -71,6 +71,23 @@ class SearchTools:
             return []
         return self._vstore.search(query_embedding, top_k=top_k)
 
+    def keyword_search(self, query: str, top_k: int = 3) -> List[SearchedChunk]:
+        """Keyword-overlap ranking over the *real* corpus (via get_all_chunks).
+        Complements vector_search: catches exact terms / proper nouns that
+        embeddings can miss."""
+        query_words = set(query.lower().split())
+
+        scored: List[SearchedChunk] = []
+        for chunk in self._vstore.get_all_chunks():
+            # TODO(human): score this chunk by keyword overlap with query_words,
+            # then append chunk._replace(score=<score>) to `scored`.
+            # SearchedChunk is a NamedTuple, so _replace returns a copy with the
+            # new score. (See simple_search above for an overlap-scoring pattern.)
+            pass
+
+        scored.sort(key=lambda c: c.score, reverse=True)
+        return scored[:top_k]
+
     def vector_search_dicts(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         """Same as vector_search, flattened to plain dicts (workflow agents
         pass docs around as dicts inside RagState)."""
