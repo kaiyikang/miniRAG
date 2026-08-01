@@ -32,3 +32,10 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.9",
 ]
+# Offline data plane (local Spark + Delta lakehouse). Kept separate from the
+# runtime deps: Spark is NOT on the online query path, so the API/RAG core must
+# stay installable without it. Delta 4.0 pairs with Spark 4.0.
+spark = [
+    "pyspark==4.0.0",
+    "delta-spark==4.0.0",
+]

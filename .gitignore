@@ -19,3 +19,9 @@ bin/
 # Local knowledge corpus and derived vector index
 /data/raw/
 /data/chroma/
+
+# Spark / Delta lakehouse (local, regenerable)
+data/lakehouse/
+spark-warehouse/
+metastore_db/
+derby.log
