@@ -79,7 +79,7 @@ class SearchTools:
 
         scored: List[SearchedChunk] = []
         for chunk in self._vstore.get_all_chunks():
-            # TODO(human): score this chunk by keyword overlap with query_words,
+            # TODO score this chunk by keyword overlap with query_words,
             # then append chunk._replace(score=<score>) to `scored`.
             # SearchedChunk is a NamedTuple, so _replace returns a copy with the
             # new score. (See simple_search above for an overlap-scoring pattern.)
