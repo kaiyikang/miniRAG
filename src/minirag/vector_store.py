@@ -61,6 +61,20 @@ class ChromaVectorStore(VectorStore):
 
         return ids
 
+    def upsert_chunks(self, chunks: list[Chunk]) -> list[str]:
+        if not chunks:
+            return []
+        ids = [
+            sha256(f"{c.document}-{c.metadata}".encode()).hexdigest() for c in chunks
+        ]
+        self._collection.upsert(
+            ids=ids,
+            documents=[c.document for c in chunks],
+            metadatas=[c.metadata for c in chunks],
+            embeddings=[c.embedding for c in chunks],
+        )
+        return ids
+
     def search(
         self,
         query_embedding: list[float],
@@ -68,6 +82,7 @@ class ChromaVectorStore(VectorStore):
     ) -> list[SearchedChunk]:
         if not query_embedding:
             return []
+
         results = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
@@ -88,6 +103,7 @@ class ChromaVectorStore(VectorStore):
         results = self._collection.get(
             ids=chunk_ids, include=["documents", "metadatas", "embeddings"]
         )
+
         if not results:
             return []
 
@@ -101,6 +117,7 @@ class ChromaVectorStore(VectorStore):
 
     def get_all_chunks(self):
         results = self._collection.get(include=["documents", "metadatas", "embeddings"])
+
         if not results:
             return []
 

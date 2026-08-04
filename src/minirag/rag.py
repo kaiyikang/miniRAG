@@ -1,6 +1,8 @@
 from minirag.embedding import EmbeddingEngine
 from minirag.vector_store import VectorStore
-from minirag.document import Chunker, load_documents, chunk_documents
+from minirag.chunking import Chunker
+from minirag.loading import local_chunks
+from minirag.indexing import index_chunks
 from minirag.llm_engine import InferenceEngine, InferenceError
 from minirag.query_transform import IdentityTransformer, QueryTransformer
 from minirag.types import Chunk, Answer, RAGEvent
@@ -55,21 +57,8 @@ class RAGPipeline:
             if not document_dir:
                 raise ValueError("Source Document dir can not be found!")
 
-            docs = load_documents(document_dir)
-            if not docs:
-                continue
-
-            chunks = chunk_documents(docs, self._chunker)
-            embeddings = self._embed.embed([chunk.document for chunk in chunks])
-            self._vstore.add_chunks(
-                [
-                    Chunk(
-                        document=chunk.document,
-                        metadata=chunk.metadata,
-                        embedding=embedding,
-                    )
-                    for chunk, embedding in zip(chunks, embeddings)
-                ]
+            index_chunks(
+                local_chunks(document_dir, self._chunker), self._embed, self._vstore
             )
 
     def clear_history(self):
