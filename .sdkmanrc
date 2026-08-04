@@ -1,0 +1,3 @@
+# Pin JDK for this project. Spark 4.0 supports Java 17/21, NOT 25.
+# Run `sdk env` in the repo root (or enable sdkman auto-env) to switch.
+java=21.0.2-tem

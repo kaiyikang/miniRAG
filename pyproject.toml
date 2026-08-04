@@ -17,7 +17,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-local = ["sentence-transformers>=3.0"]
+local = [
+    "sentence-transformers>=3.0",
+    "deltalake>=0.20",
+    "pyarrow>=15",
+    "pandas>=2",
+]
 
 [build-system]
 requires = ["hatchling"]

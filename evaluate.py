@@ -3,7 +3,7 @@ from minirag.rag import RAGPipeline
 from minirag.embedding import OpenRouterEmbeddingEngine
 from minirag.vector_store import ChromaVectorStore
 from minirag.llm_engine import OpenRouterEngine
-from minirag.document import SlidingWindowChunker
+from minirag.chunking import SlidingWindowChunker
 from minirag.evaluator import Evaluator, QA_DATASET_FILENAME
 from minirag.query_transform import HyDETransformer
 import queue
@@ -14,7 +14,7 @@ q = queue.Queue()
 print(settings)
 
 # Knobs for this run, defined once so `params` below can't drift from what's used.
-CHUNK_SIZE = 512
+CHUNK_SIZE = 200
 TOP_K = 5
 SUFFIX = "hyde-glm52"  # human label for the run folder: what variant this tests
 

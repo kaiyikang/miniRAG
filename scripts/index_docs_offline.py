@@ -3,7 +3,7 @@ from minirag.rag import RAGPipeline
 from minirag.embedding import SentenceTransformerEngine
 from minirag.vector_store import ChromaVectorStore
 from minirag.llm_engine import OpenRouterEngine
-from minirag.document import SlidingWindowChunker
+from minirag.chunking import SlidingWindowChunker
 
 settings = get_settings()
 

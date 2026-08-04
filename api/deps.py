@@ -3,7 +3,7 @@ from functools import lru_cache
 from queue import Queue
 
 from minirag.config import get_settings
-from minirag.document import Chunker, SlidingWindowChunker
+from minirag.chunking import Chunker, SlidingWindowChunker
 from minirag.embedding import EmbeddingEngine, OpenRouterEmbeddingEngine
 from minirag.llm_engine import InferenceEngine, OpenRouterEngine
 from minirag.query_transform import HyDETransformer, QueryTransformer
@@ -39,7 +39,7 @@ def get_pipeline_dependencies() -> PipelineDependencies:
             vector_store_path=settings.vector_store_path,
             collection_name=settings.collection_name,
         ),
-        chunker=SlidingWindowChunker(chunk_size=512),
+        chunker=SlidingWindowChunker(chunk_size=200),
         llm=llm,
         query_transformer=HyDETransformer(llm=llm),
     )
