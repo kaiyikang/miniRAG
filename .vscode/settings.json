@@ -3,5 +3,9 @@
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
   "python.testing.pytestPath": ".venv/bin/pytest",
-  "cSpell.words": ["Reranker"]
+  "cSpell.words": [
+    "chunker",
+    "minirag",
+    "Reranker"
+  ]
 }

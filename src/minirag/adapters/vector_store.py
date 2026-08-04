@@ -1,32 +1,11 @@
 import chromadb
 from chromadb import ClientAPI
-from abc import ABC, abstractmethod
-from minirag.types import Chunk, SearchedChunk
 from hashlib import sha256
 from itertools import repeat
 from typing import Any, Iterable
 
-
-class VectorStore(ABC):
-    """Abstract base class for vector stores."""
-
-    @abstractmethod
-    def __init__(self, vector_store_path: str, collection_name: str):
-        """Initialize the vector store."""
-
-    @abstractmethod
-    def add_chunks(self, chunks: list[Chunk]) -> list[str]:
-        """Add chunks to the vector store."""
-
-    @abstractmethod
-    def search(
-        self, query_embedding: list[float], top_k: int = 10
-    ) -> list[SearchedChunk]:
-        """Search for the top-k chunks most similar to the query embedding."""
-
-    @abstractmethod
-    def get_all_chunks(self) -> list[SearchedChunk]:
-        """Get all chunks"""
+from minirag.domain.ports import VectorStore
+from minirag.domain.models import Chunk, SearchedChunk
 
 
 class ChromaVectorStore(VectorStore):

@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from minirag.llm_engine import InferenceError, OpenRouterEngine
+from minirag.adapters.llm import InferenceError, OpenRouterEngine
 
 
 class TestOpenRouterEngine(unittest.TestCase):
@@ -59,7 +59,7 @@ class TestOpenRouterEngine(unittest.TestCase):
             ],
         )
 
-    @patch("minirag.llm_engine.requests.post")
+    @patch("minirag.adapters.llm.requests.post")
     def test_generate_success(self, mock_post):
         mock_post.return_value = MagicMock(
             raise_for_status=MagicMock(),
@@ -77,7 +77,7 @@ class TestOpenRouterEngine(unittest.TestCase):
         self.assertEqual(payload["messages"], [{"role": "user", "content": "hello"}])
         self.assertTrue(payload["reasoning"]["enabled"])
 
-    @patch("minirag.llm_engine.requests.post")
+    @patch("minirag.adapters.llm.requests.post")
     def test_generate_request_exception(self, mock_post):
         import requests
 
@@ -87,7 +87,7 @@ class TestOpenRouterEngine(unittest.TestCase):
             engine.generate("hello")
         self.assertIn("LLM inference failed", str(ctx.exception))
 
-    @patch("minirag.llm_engine.requests.post")
+    @patch("minirag.adapters.llm.requests.post")
     def test_generate_http_error(self, mock_post):
         import requests
 
@@ -99,7 +99,7 @@ class TestOpenRouterEngine(unittest.TestCase):
             engine.generate("hello")
         self.assertIn("LLM inference failed", str(ctx.exception))
 
-    @patch("minirag.llm_engine.requests.post")
+    @patch("minirag.adapters.llm.requests.post")
     def test_generate_keyerror_response(self, mock_post):
         mock_post.return_value = MagicMock(
             raise_for_status=MagicMock(),
@@ -110,7 +110,7 @@ class TestOpenRouterEngine(unittest.TestCase):
             engine.generate("hello")
         self.assertIn("Unexpected response format", str(ctx.exception))
 
-    @patch("minirag.llm_engine.requests.post")
+    @patch("minirag.adapters.llm.requests.post")
     def test_generate_indexerror_response(self, mock_post):
         mock_post.return_value = MagicMock(
             raise_for_status=MagicMock(),
@@ -121,7 +121,7 @@ class TestOpenRouterEngine(unittest.TestCase):
             engine.generate("hello")
         self.assertIn("Unexpected response format", str(ctx.exception))
 
-    @patch("minirag.llm_engine.requests.post")
+    @patch("minirag.adapters.llm.requests.post")
     def test_generate_typeerror_response(self, mock_post):
         mock_post.return_value = MagicMock(
             raise_for_status=MagicMock(),

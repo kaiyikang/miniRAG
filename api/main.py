@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from minirag.types import RAGEvent
+from minirag.domain.models import RAGEvent
 
 from .deps import create_pipeline
 

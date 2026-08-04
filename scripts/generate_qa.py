@@ -1,7 +1,7 @@
-from minirag.llm_engine import OpenRouterEngine
-from minirag.vector_store import ChromaVectorStore
+from minirag.adapters.llm import OpenRouterEngine
+from minirag.adapters.vector_store import ChromaVectorStore
 from minirag.config import get_settings
-from minirag.evaluator import QA_DATASET_FILENAME, _git_info
+from minirag.adapters.evaluator import QA_DATASET_FILENAME, _git_info
 import argparse
 import random
 import re
@@ -110,7 +110,9 @@ if __name__ == "__main__":
 
     # Sample eligible chunks up front (seeded, so a regenerated dataset is
     # reproducible and not biased toward whatever happens to be first in the store).
-    eligible = [c for c in store.get_all_chunks() if len(c.document.split()) >= MIN_WORDS]
+    eligible = [
+        c for c in store.get_all_chunks() if len(c.document.split()) >= MIN_WORDS
+    ]
     random.Random(SEED).shuffle(eligible)
 
     n_chunks = 0

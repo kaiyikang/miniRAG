@@ -3,20 +3,18 @@ from functools import lru_cache
 from queue import Queue
 
 from minirag.config import get_settings
-from minirag.chunking import Chunker, SlidingWindowChunker
-from minirag.embedding import EmbeddingEngine, OpenRouterEmbeddingEngine
-from minirag.llm_engine import InferenceEngine, OpenRouterEngine
-from minirag.query_transform import HyDETransformer, QueryTransformer
-from minirag.rag import RAGPipeline
-from minirag.types import RAGEvent
-from minirag.vector_store import ChromaVectorStore, VectorStore
+from minirag.adapters.embedder import EmbeddingEngine, OpenRouterEmbeddingEngine
+from minirag.adapters.llm import InferenceEngine, OpenRouterEngine
+from minirag.adapters.hyde import HyDETransformer, QueryTransformer
+from minirag.domain.rag import RAGPipeline
+from minirag.domain.models import RAGEvent
+from minirag.adapters.vector_store import ChromaVectorStore, VectorStore
 
 
 @dataclass(frozen=True)
 class PipelineDependencies:
     embed: EmbeddingEngine
     vector_store: VectorStore
-    chunker: Chunker
     llm: InferenceEngine
     query_transformer: QueryTransformer
 
@@ -39,7 +37,6 @@ def get_pipeline_dependencies() -> PipelineDependencies:
             vector_store_path=settings.vector_store_path,
             collection_name=settings.collection_name,
         ),
-        chunker=SlidingWindowChunker(chunk_size=200),
         llm=llm,
         query_transformer=HyDETransformer(llm=llm),
     )
@@ -51,7 +48,6 @@ def create_pipeline(event_queue: Queue[RAGEvent]) -> RAGPipeline:
     return RAGPipeline(
         embed=dependencies.embed,
         vector_store=dependencies.vector_store,
-        chunker=dependencies.chunker,
         llm=dependencies.llm,
         query_transformer=dependencies.query_transformer,
         event_queue=event_queue,

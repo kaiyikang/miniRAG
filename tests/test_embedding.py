@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from minirag.embedding import (
-    EmbeddingError,
+from minirag.domain.ports import EmbeddingError
+from minirag.adapters.embedder import (
     OpenRouterEmbeddingEngine,
     SentenceTransformerEngine,
 )
@@ -46,7 +46,6 @@ class TestSentenceTransformerEngine(unittest.TestCase):
         result = engine.embed([])
         self.assertEqual(result, [])
 
-
     @patch("sentence_transformers.SentenceTransformer")
     def test_init_missing_model_or_cache_dir_raises(self, mock_cls):
         with self.assertRaises(ValueError):
@@ -61,7 +60,7 @@ class TestOpenRouterEmbeddingEngine(unittest.TestCase):
             OpenRouterEmbeddingEngine(model="m", api_key=None)
         self.assertIn("OpenRouter model and API key are required", str(ctx.exception))
 
-    @patch("minirag.embedding.requests.post")
+    @patch("minirag.adapters.embedder.requests.post")
     def test_embed_success(self, mock_post):
         mock_post.return_value = MagicMock(
             raise_for_status=MagicMock(),
@@ -78,7 +77,7 @@ class TestOpenRouterEmbeddingEngine(unittest.TestCase):
         self.assertEqual(kwargs["json"]["model"], "m")
         self.assertEqual(kwargs["json"]["input"], ["hello"])
 
-    @patch("minirag.embedding.requests.post")
+    @patch("minirag.adapters.embedder.requests.post")
     def test_embed_request_exception(self, mock_post):
         import requests
 
@@ -88,7 +87,7 @@ class TestOpenRouterEmbeddingEngine(unittest.TestCase):
             engine.embed(["hello"])
         self.assertIn("LLM embedding failed", str(ctx.exception))
 
-    @patch("minirag.embedding.requests.post")
+    @patch("minirag.adapters.embedder.requests.post")
     def test_embed_respects_custom_batch_size(self, mock_post):
         def _make_response(batch):
             return MagicMock(
@@ -108,7 +107,7 @@ class TestOpenRouterEmbeddingEngine(unittest.TestCase):
         self.assertEqual(result, [[0.1], [0.1], [0.1]])
         self.assertEqual(mock_post.call_count, 2)
 
-    @patch("minirag.embedding.requests.post")
+    @patch("minirag.adapters.embedder.requests.post")
     def test_embed_count_mismatch_raises(self, mock_post):
         mock_post.return_value = MagicMock(
             raise_for_status=MagicMock(),

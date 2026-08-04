@@ -1,6 +1,5 @@
-from minirag.rag import RAGPipeline
-from minirag.llm_engine import InferenceEngine, InferenceError
-from minirag.embedding import EmbeddingEngine
+from minirag.domain.rag import RAGPipeline
+from minirag.domain.ports import InferenceEngine, InferenceError, EmbeddingEngine
 from llama_index.core.node_parser.text.utils import split_by_sentence_tokenizer
 from typing import NamedTuple
 from datetime import datetime
@@ -10,7 +9,6 @@ import json
 import subprocess
 import traceback
 import math
-
 
 # Single source of truth for the eval dataset filename, shared by the producer
 # (scripts/generate_qa.py) and this consumer so the two can't drift apart.
@@ -55,7 +53,9 @@ class Evaluator:
         # One directory per run: eval/runs/<timestamp>_<suffix>/
         run_id = f"{datetime.now():%Y-%m-%d_%H%M%S}_{suffix}"
         self._run_dir = Path(dataset_dir) / "runs" / run_id
-        self._run_dir.mkdir(parents=True)  # no exist_ok: a name clash should fail loudly
+        self._run_dir.mkdir(
+            parents=True
+        )  # no exist_ok: a name clash should fail loudly
         self._eval_results = self._run_dir / "results.jsonl"
         self._eval_summary = self._run_dir / "summary.json"
         self._recall_top_k = recall_top_k
@@ -473,12 +473,16 @@ def _git_info() -> tuple[str | None, bool | None]:
     try:
         commit = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
         dirty = bool(
             subprocess.run(
                 ["git", "status", "--porcelain"],
-                capture_output=True, text=True, check=True,
+                capture_output=True,
+                text=True,
+                check=True,
             ).stdout.strip()
         )
         return commit, dirty

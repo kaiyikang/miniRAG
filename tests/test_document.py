@@ -3,15 +3,17 @@ from unittest.mock import MagicMock, patch
 
 from llama_index.core import Document
 
-from minirag.document import (
+from minirag.adapters.chunker import (
     SlidingWindowChunker,
     SpacyChunker,
     ParagraphChunker,
-    MarkdownWithoutFrontmatterReader,
-    chunk_documents,
-    load_documents,
 )
-from minirag.types import Chunk
+from minirag.adapters.load import (
+    MarkdownWithoutFrontmatterReader,
+    _chunk_documents as chunk_documents,
+    _load_documents as load_documents,
+)
+from minirag.domain.models import Chunk
 
 
 class TestSlidingWindowChunker(unittest.TestCase):
@@ -111,10 +113,13 @@ class TestParagraphChunker(unittest.TestCase):
 
 
 class TestMarkdownWithoutFrontmatterReader(unittest.TestCase):
-    @patch("minirag.document.MarkdownReader")
+    @patch("minirag.adapters.load.MarkdownReader")
     def test_strips_frontmatter(self, mock_reader_cls):
         from llama_index.core import Document
-        mock_doc = Document(text="---\ntitle: X\n---\n\nbody", metadata={"file_path": "f.md"})
+
+        mock_doc = Document(
+            text="---\ntitle: X\n---\n\nbody", metadata={"file_path": "f.md"}
+        )
         mock_reader = MagicMock()
         mock_reader.load_data.return_value = [mock_doc]
         mock_reader_cls.return_value = mock_reader
@@ -129,11 +134,14 @@ class TestMarkdownWithoutFrontmatterReader(unittest.TestCase):
 class TestSpacyChunkerImportError(unittest.TestCase):
     def test_import_error_raises(self):
         import builtins
+
         real_import = builtins.__import__
+
         def mock_import(name, *args, **kwargs):
             if name == "spacy":
                 raise ImportError("No module named 'spacy'")
             return real_import(name, *args, **kwargs)
+
         with patch.object(builtins, "__import__", mock_import):
             with self.assertRaises(ImportError):
                 SpacyChunker()
@@ -176,8 +184,8 @@ class TestChunkerComparison(unittest.TestCase):
 
 
 class TestLoadDocuments(unittest.TestCase):
-    @patch("minirag.document.SimpleDirectoryReader")
-    @patch("minirag.document.Path.exists", return_value=True)
+    @patch("minirag.adapters.load.SimpleDirectoryReader")
+    @patch("minirag.adapters.load.Path.exists", return_value=True)
     def test_load_documents_from_path(self, mock_exists, mock_reader_cls):
         mock_doc = MagicMock(spec=Document)
         mock_reader = MagicMock()

@@ -4,8 +4,9 @@ from llama_index.core import SimpleDirectoryReader, Document
 from llama_index.core.readers.base import BaseReader
 from llama_index.readers.file import MarkdownReader
 
-from minirag.types import Chunk
-from minirag.chunking import clean_markdown, Chunker
+from minirag.domain.models import Chunk
+from minirag.adapters.chunker import clean_markdown
+from minirag.domain.ports import Chunker, DocumentSource
 
 
 class MarkdownWithoutFrontmatterReader(BaseReader):
@@ -16,6 +17,14 @@ class MarkdownWithoutFrontmatterReader(BaseReader):
         return [
             Document(text=clean_markdown(d.text), metadata=d.metadata) for d in docs
         ]
+
+
+class LocalMarkdownSource(DocumentSource):
+    def __init__(self, chunker: Chunker):
+        self._chunker = chunker
+
+    def load(self, doc_dir: str) -> list[Chunk]:
+        return local_chunks(doc_dir, self._chunker)
 
 
 def _load_documents(path: str) -> list[Document]:

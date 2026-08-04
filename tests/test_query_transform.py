@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import MagicMock
 
-from minirag.query_transform import IdentityTransformer, HyDETransformer
-from minirag.llm_engine import InferenceError
+from minirag.adapters.hyde import IdentityTransformer, HyDETransformer
+from minirag.adapters.llm import InferenceError
 
 
 class TestIdentityTransformer(unittest.TestCase):

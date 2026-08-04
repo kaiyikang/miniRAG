@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 import unittest
-from minirag.reranker import CrossEncoderReranker, VectorReranker
-from minirag.types import SearchedChunk
+from minirag.adapters.reranker import CrossEncoderReranker, VectorReranker
+from minirag.domain.models import SearchedChunk
 
 
 class TestVectorReranker(unittest.TestCase):
@@ -9,9 +9,9 @@ class TestVectorReranker(unittest.TestCase):
         reranker = VectorReranker()
         query_embedding = [1.0, 0.0]
         chunks = [
-            SearchedChunk("1", "doc a", {}, [0.0, 1.0], 0.0),   # cos = 0.0
-            SearchedChunk("2", "doc b", {}, [1.0, 0.0], 0.0),   # cos = 1.0
-            SearchedChunk("3", "doc c", {}, [0.6, 0.8], 0.0),   # cos = 0.6
+            SearchedChunk("1", "doc a", {}, [0.0, 1.0], 0.0),  # cos = 0.0
+            SearchedChunk("2", "doc b", {}, [1.0, 0.0], 0.0),  # cos = 1.0
+            SearchedChunk("3", "doc c", {}, [0.6, 0.8], 0.0),  # cos = 0.6
         ]
 
         result = reranker.rank(None, query_embedding, chunks)

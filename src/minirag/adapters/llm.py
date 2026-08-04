@@ -1,26 +1,7 @@
-from abc import ABC, abstractmethod
 from typing import Any
-
+from minirag.domain.ports import InferenceEngine, InferenceError
 import requests
 from langfuse import get_client, observe
-
-
-class InferenceEngine(ABC):
-    @abstractmethod
-    def generate(
-        self,
-        messages: str | list[dict[str, Any]],
-        *,
-        reasoning: bool = True,
-        last_response: dict[str, Any] | None = None,
-        schema: dict[str, Any] | None = None,
-        span_name: str | None = None,
-    ) -> dict[str, Any]:
-        """Generate a response and return the assistant message dict."""
-
-
-class InferenceError(Exception):
-    """Raised when the LLM inference request fails."""
 
 
 class OpenRouterEngine(InferenceEngine):

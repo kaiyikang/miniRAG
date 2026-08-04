@@ -1,8 +1,6 @@
 from typing import List, Dict, Any
-
-from minirag.embedding import EmbeddingEngine, EmbeddingError
-from minirag.vector_store import VectorStore
-from minirag.types import SearchedChunk
+from minirag.domain.ports import EmbeddingEngine, EmbeddingError, VectorStore
+from minirag.domain.models import SearchedChunk
 from tenacity import (
     retry,
     stop_after_attempt,

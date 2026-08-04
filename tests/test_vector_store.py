@@ -2,7 +2,7 @@ import unittest
 
 import chromadb
 
-from minirag.vector_store import Chunk, ChromaVectorStore, SearchedChunk
+from minirag.adapters.vector_store import Chunk, ChromaVectorStore, SearchedChunk
 
 
 class TestChromaVectorStore(unittest.TestCase):
@@ -23,7 +23,9 @@ class TestChromaVectorStore(unittest.TestCase):
 
     def test_add_chunks_returns_ids(self):
         chunks = [
-            Chunk(document="hello world", embedding=[1.0, 0.0], metadata={"source": "a"}),
+            Chunk(
+                document="hello world", embedding=[1.0, 0.0], metadata={"source": "a"}
+            ),
             Chunk(document="foo bar", embedding=[0.0, 1.0], metadata={"source": "b"}),
         ]
 
@@ -35,7 +37,9 @@ class TestChromaVectorStore(unittest.TestCase):
 
     def test_search_returns_results_ordered_by_relevance(self):
         chunks = [
-            Chunk(document="hello world", embedding=[1.0, 0.0], metadata={"source": "a"}),
+            Chunk(
+                document="hello world", embedding=[1.0, 0.0], metadata={"source": "a"}
+            ),
             Chunk(document="foo bar", embedding=[0.0, 1.0], metadata={"source": "b"}),
         ]
         self.store.add_chunks(chunks)
@@ -61,7 +65,9 @@ class TestChromaVectorStore(unittest.TestCase):
 
     def test_get_all_chunks_returns_chunks(self):
         chunks = [
-            Chunk(document="hello world", embedding=[1.0, 0.0], metadata={"source": "a"}),
+            Chunk(
+                document="hello world", embedding=[1.0, 0.0], metadata={"source": "a"}
+            ),
         ]
         self.store.add_chunks(chunks)
 

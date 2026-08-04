@@ -4,14 +4,15 @@ import tempfile
 import shutil
 import chromadb
 from typing import Any
-from minirag.vector_store import ChromaVectorStore
-from minirag.rag import RAGPipeline
-from minirag.embedding import EmbeddingEngine
-from minirag.llm_engine import InferenceEngine
-from minirag.query_transform import QueryTransformer
+from minirag.adapters.vector_store import ChromaVectorStore
+from minirag.domain.rag import RAGPipeline
+from minirag.adapters.embedder import EmbeddingEngine
+from minirag.adapters.llm import InferenceEngine
+from minirag.adapters.hyde import QueryTransformer
 import os
 import queue
-from minirag.document import SlidingWindowChunker
+from minirag.adapters.chunker import SlidingWindowChunker
+from minirag.adapters.load import LocalMarkdownSource
 
 
 class MockEmbedding(EmbeddingEngine):
@@ -45,7 +46,7 @@ class TestRagPipeline(unittest.TestCase):
         self.pipeline = RAGPipeline(
             embed=MockEmbedding(),
             vector_store=self.store,
-            chunker=SlidingWindowChunker(),
+            source=LocalMarkdownSource(SlidingWindowChunker()),
             llm=MockLLM(),
         )
 
@@ -69,7 +70,9 @@ class TestRagPipeline(unittest.TestCase):
 
         answer = self.pipeline.query("What is RAG?")
 
-        self.assertEqual(answer.content, "RAG is retrieval augmented generation system.")
+        self.assertEqual(
+            answer.content, "RAG is retrieval augmented generation system."
+        )
         self.assertEqual(len(answer.sources), 1)
         self.assertEqual(answer.sources[0]["file_name"], "test.txt")
 
@@ -77,26 +80,28 @@ class TestRagPipeline(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.pipeline.index_documents("")
 
-    @patch("minirag.rag.load_documents")
+    @patch("minirag.adapters.load.LocalMarkdownSource.load")
     def test_index_documents_no_docs_does_not_crash(self, mock_load):
         mock_load.return_value = []
         self.pipeline.index_documents(self.document_dir)
 
     def test_query_no_retrieved_chunks(self):
         answer = self.pipeline.query("something unrelated")
-        self.assertEqual(answer.content, "RAG is retrieval augmented generation system.")
+        self.assertEqual(
+            answer.content, "RAG is retrieval augmented generation system."
+        )
         self.assertEqual(answer.sources, [])
 
     def test_query_inference_error_handling(self):
         class BadLLM(InferenceEngine):
             def generate(self, messages, *, reasoning=True, last_response=None):
-                from minirag.llm_engine import InferenceError
+                from minirag.adapters.llm import InferenceError
+
                 raise InferenceError("boom")
 
         pipeline = RAGPipeline(
             embed=MockEmbedding(),
             vector_store=self.store,
-            chunker=SlidingWindowChunker(),
             llm=BadLLM(),
         )
         answer = pipeline.query("q")
@@ -111,7 +116,6 @@ class TestRagPipeline(unittest.TestCase):
         pipeline = RAGPipeline(
             embed=MockEmbedding(),
             vector_store=self.store,
-            chunker=SlidingWindowChunker(),
             llm=MockLLM(),
             query_transformer=UpperCaseTransformer(),
             event_queue=events,
@@ -133,7 +137,6 @@ class TestRagPipeline(unittest.TestCase):
         pipeline = RAGPipeline(
             embed=MockEmbedding(),
             vector_store=self.store,
-            chunker=SlidingWindowChunker(),
             llm=MockLLM(),
             query_transformer=BrokenTransformer(),
             event_queue=events,
@@ -156,4 +159,6 @@ class TestRagPipeline(unittest.TestCase):
 
         # MAX_HISTORY_MESSAGES = 6 (3 user + 3 assistant pairs would be 6 messages)
         # After 5 queries, history should have at most 6 messages
-        self.assertLessEqual(len(self.pipeline._history), RAGPipeline.MAX_HISTORY_MESSAGES)
+        self.assertLessEqual(
+            len(self.pipeline._history), RAGPipeline.MAX_HISTORY_MESSAGES
+        )

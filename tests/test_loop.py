@@ -7,7 +7,7 @@ loop itself driven by a scripted (fake) policy instead of a real LLM.
 
 import unittest
 
-from minirag.types import SearchedChunk
+from minirag.domain.models import SearchedChunk
 from minirag.agents.loop.agent import (
     SearchAction,
     InspectAction,

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from minirag.evaluator import (
+from minirag.adapters.evaluator import (
     Evaluator,
     EvalResult,
     EvalSample,
@@ -12,7 +12,7 @@ from minirag.evaluator import (
     cal_retrieval_recall as retrieval_recall,
     cal_token_f1 as token_f1,
 )
-from minirag.types import Answer
+from minirag.domain.models import Answer
 
 
 class TestRetrievalRecall(unittest.TestCase):
@@ -53,7 +53,17 @@ class TestEvaluator(unittest.TestCase):
         dataset = Path(self.tmpdir) / QA_DATASET_FILENAME
         with open(dataset, "w", encoding="utf-8") as f:
             for i in range(7):
-                f.write(json.dumps({"question": f"q{i}", "expected_answer": f"a{i}", "expected_chunk_ids": [f"c{i}"]}, ensure_ascii=False) + "\n")
+                f.write(
+                    json.dumps(
+                        {
+                            "question": f"q{i}",
+                            "expected_answer": f"a{i}",
+                            "expected_chunk_ids": [f"c{i}"],
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
 
         mock_pipeline = MagicMock()
         mock_pipeline.query.return_value = Answer(

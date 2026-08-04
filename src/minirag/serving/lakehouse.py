@@ -2,7 +2,7 @@ from pathlib import Path
 
 from deltalake import DeltaTable
 
-from minirag.types import Chunk
+from minirag.domain.models import Chunk
 
 # no JVM without importing pyspark
 LAKEHOUSE_ROOT = Path("data/lakehouse")

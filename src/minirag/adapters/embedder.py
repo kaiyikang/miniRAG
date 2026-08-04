@@ -1,17 +1,6 @@
-from abc import ABC, abstractmethod
 import os
 import requests
-
-
-class EmbeddingError(Exception):
-    """Raised when the LLM embedding request fails."""
-
-
-class EmbeddingEngine(ABC):
-
-    @abstractmethod
-    def embed(self, texts: list[str]) -> list[list[float]]:
-        """Embed a list of texts into vectors."""
+from minirag.domain.ports import EmbeddingEngine, EmbeddingError
 
 
 class SentenceTransformerEngine(EmbeddingEngine):

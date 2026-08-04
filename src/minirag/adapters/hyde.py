@@ -1,11 +1,4 @@
-from abc import ABC, abstractmethod
-from minirag.llm_engine import InferenceEngine, InferenceError
-
-
-class QueryTransformer(ABC):
-    @abstractmethod
-    def transform(self, question: str) -> str:
-        """Return the text that should be embedded for retrieval."""
+from minirag.domain.ports import InferenceEngine, InferenceError, QueryTransformer
 
 
 class IdentityTransformer(QueryTransformer):

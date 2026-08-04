@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from api import deps
-from minirag.query_transform import HyDETransformer
+from minirag.adapters.hyde import HyDETransformer
 
 
 def test_create_pipeline_uses_request_queue_and_current_dependencies():
@@ -16,7 +16,6 @@ def test_create_pipeline_uses_request_queue_and_current_dependencies():
     )
     embed = Mock()
     vector_store = Mock()
-    chunker = Mock()
     llm = Mock()
     events = queue.Queue()
     other_events = queue.Queue()
@@ -27,7 +26,6 @@ def test_create_pipeline_uses_request_queue_and_current_dependencies():
             patch("api.deps.get_settings", return_value=settings),
             patch("api.deps.OpenRouterEmbeddingEngine", return_value=embed),
             patch("api.deps.ChromaVectorStore", return_value=vector_store),
-            patch("api.deps.SlidingWindowChunker", return_value=chunker),
             patch("api.deps.OpenRouterEngine", return_value=llm),
         ):
             pipeline = deps.create_pipeline(events)
@@ -39,7 +37,6 @@ def test_create_pipeline_uses_request_queue_and_current_dependencies():
         assert pipeline.get_embed() is embed
         assert pipeline.get_llm() is llm
         assert pipeline._vstore is vector_store
-        assert pipeline._chunker is chunker
         assert isinstance(pipeline._query_transformer, HyDETransformer)
         assert pipeline._query_transformer._llm is llm
     finally:

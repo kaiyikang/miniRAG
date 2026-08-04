@@ -1,5 +1,5 @@
 import re
-from abc import ABC, abstractmethod
+from minirag.domain.ports import Chunker
 
 _FRONTMATTER_RE = re.compile(r"^---\s*\n.*?\n---\s*\n", re.DOTALL)
 _IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
@@ -20,12 +20,6 @@ def chunk_by_words(text: str, size: int = 200, overlap: int = 40) -> list[str]:
         return []
     step = size - overlap
     return [" ".join(words[i : i + size]) for i in range(0, len(words), step)]
-
-
-class Chunker(ABC):
-    @abstractmethod
-    def chunk(self, text: str) -> list[str]:
-        """text -> list of chunk strings"""
 
 
 class SlidingWindowChunker(Chunker):

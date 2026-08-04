@@ -1,7 +1,6 @@
 from typing import Iterable
-from minirag.types import Chunk
-from minirag.embedding import EmbeddingEngine
-from minirag.vector_store import VectorStore
+from minirag.domain.models import Chunk
+from minirag.domain.ports import EmbeddingEngine, VectorStore
 
 
 def index_chunks(

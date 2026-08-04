@@ -1,18 +1,7 @@
-from abc import ABC, abstractmethod
-from minirag.types import SearchedChunk
+from minirag.domain.ports import Reranker
+from minirag.domain.models import SearchedChunk
 import math
 import os
-
-
-class Reranker(ABC):
-    @abstractmethod
-    def rank(
-        self,
-        query_text: str | None,
-        query_embedding: list[float] | None,
-        chunks: list[SearchedChunk],
-    ) -> list[SearchedChunk]:
-        """"""
 
 
 class VectorReranker(Reranker):

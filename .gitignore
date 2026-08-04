@@ -25,3 +25,6 @@ data/lakehouse/
 spark-warehouse/
 metastore_db/
 derby.log
+
+# lint
+.ruff_cache

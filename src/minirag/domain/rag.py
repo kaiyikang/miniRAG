@@ -1,12 +1,15 @@
-from minirag.embedding import EmbeddingEngine
-from minirag.vector_store import VectorStore
-from minirag.chunking import Chunker
-from minirag.loading import local_chunks
-from minirag.indexing import index_chunks
-from minirag.llm_engine import InferenceEngine, InferenceError
-from minirag.query_transform import IdentityTransformer, QueryTransformer
-from minirag.types import Chunk, Answer, RAGEvent
-from minirag.reranker import Reranker
+from minirag.domain.index import index_chunks
+from minirag.domain.ports import (
+    IdentityTransformer,
+    QueryTransformer,
+    InferenceEngine,
+    InferenceError,
+    EmbeddingEngine,
+    VectorStore,
+    Reranker,
+    DocumentSource,
+)
+from minirag.domain.models import Answer, RAGEvent
 from typing import Any
 from langfuse import observe, get_client
 import queue
@@ -26,14 +29,15 @@ class RAGPipeline:
         self,
         embed: EmbeddingEngine,
         vector_store: VectorStore,
-        chunker: Chunker,
         llm: InferenceEngine,
+        source: DocumentSource | None = None,
         query_transformer: QueryTransformer = IdentityTransformer(),
         event_queue: queue.Queue | None = None,
     ):
+        # source is only needed to index_documents(); query-only pipelines omit it.
+        self._source = source
         self._embed = embed
         self._vstore = vector_store
-        self._chunker = chunker
         self._llm = llm
         self._query_transformer = query_transformer
         self._history: list[dict[str, Any]] = []  # or ChatHistory
@@ -50,6 +54,8 @@ class RAGPipeline:
         get_client().update_current_span(metadata={step: data})
 
     def index_documents(self, document_dirs: str | list[str]) -> None:
+        if self._source is None:
+            raise ValueError("No DocumentSource; construct with source=... to index.")
         if isinstance(document_dirs, str):
             document_dirs = [document_dirs]
 
@@ -58,7 +64,9 @@ class RAGPipeline:
                 raise ValueError("Source Document dir can not be found!")
 
             index_chunks(
-                local_chunks(document_dir, self._chunker), self._embed, self._vstore
+                self._source.load(document_dir),
+                self._embed,
+                self._vstore,
             )
 
     def clear_history(self):

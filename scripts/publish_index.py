@@ -1,10 +1,10 @@
 import chromadb
 
-from minirag.config import Settings  # ← 你的 settings 模块路径
-from minirag.embedding import OpenRouterEmbeddingEngine
-from minirag.vector_store import ChromaVectorStore
+from minirag.config import Settings
+from minirag.adapters.embedder import OpenRouterEmbeddingEngine
+from minirag.adapters.vector_store import ChromaVectorStore
 from minirag.serving.lakehouse import lakehouse_chunks
-from minirag.indexing import index_chunks
+from minirag.domain.index import index_chunks
 
 COLLECTION_NAME = "support_gemini_embedding_2_v1"
 

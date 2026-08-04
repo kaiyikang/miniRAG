@@ -1,10 +1,9 @@
 from minirag.config import get_settings
-from minirag.rag import RAGPipeline
-from minirag.embedding import OpenRouterEmbeddingEngine
-from minirag.vector_store import ChromaVectorStore
-from minirag.llm_engine import OpenRouterEngine
-from minirag.chunking import SlidingWindowChunker
-from minirag.query_transform import HyDETransformer
+from minirag.domain.rag import RAGPipeline
+from minirag.adapters.embedder import OpenRouterEmbeddingEngine
+from minirag.adapters.vector_store import ChromaVectorStore
+from minirag.adapters.llm import OpenRouterEngine
+from minirag.adapters.hyde import HyDETransformer
 import queue
 import threading
 
@@ -36,7 +35,6 @@ pipeline = RAGPipeline(
         vector_store_path=settings.vector_store_path,
         collection_name=settings.collection_name,
     ),
-    chunker=SlidingWindowChunker(chunk_size=200),
     llm=llm,
     query_transformer=HyDETransformer(llm=llm),
     event_queue=q,
