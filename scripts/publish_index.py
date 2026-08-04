@@ -3,7 +3,7 @@ import chromadb
 from minirag.config import Settings
 from minirag.adapters.embedder import OpenRouterEmbeddingEngine
 from minirag.adapters.vector_store import ChromaVectorStore
-from minirag.serving.lakehouse import lakehouse_chunks
+from minirag.adapters.source_lakehouse import LakehouseSource
 from minirag.domain.index import index_chunks
 
 COLLECTION_NAME = "support_gemini_embedding_2_v1"
@@ -24,7 +24,7 @@ def main():
         client=client,
     )
 
-    ids = index_chunks(lakehouse_chunks(), embed, vstore)
+    ids = index_chunks(LakehouseSource().load(), embed, vstore)
     print(f"OK published {len(ids)} chunks to '{COLLECTION_NAME}' (no JVM)")
 
 

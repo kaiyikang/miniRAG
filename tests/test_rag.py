@@ -12,7 +12,7 @@ from minirag.adapters.hyde import QueryTransformer
 import os
 import queue
 from minirag.adapters.chunker import SlidingWindowChunker
-from minirag.adapters.load import LocalMarkdownSource
+from minirag.adapters.source_local import LocalMarkdownSource
 
 
 class MockEmbedding(EmbeddingEngine):
@@ -46,7 +46,7 @@ class TestRagPipeline(unittest.TestCase):
         self.pipeline = RAGPipeline(
             embed=MockEmbedding(),
             vector_store=self.store,
-            source=LocalMarkdownSource(SlidingWindowChunker()),
+            source=LocalMarkdownSource(self.document_dir, SlidingWindowChunker()),
             llm=MockLLM(),
         )
 
@@ -66,7 +66,7 @@ class TestRagPipeline(unittest.TestCase):
 
     def test_query_returns_answer_with_sources(self):
         self._write_doc("test.txt", "RAG stands for Retrieval Augmented Generation.")
-        self.pipeline.index_documents(self.document_dir)
+        self.pipeline.index()
 
         answer = self.pipeline.query("What is RAG?")
 
@@ -76,14 +76,17 @@ class TestRagPipeline(unittest.TestCase):
         self.assertEqual(len(answer.sources), 1)
         self.assertEqual(answer.sources[0]["file_name"], "test.txt")
 
-    def test_index_documents_empty_dir_raises(self):
+    def test_index_no_source_raises(self):
+        pipeline = RAGPipeline(
+            embed=MockEmbedding(), vector_store=self.store, llm=MockLLM()
+        )
         with self.assertRaises(ValueError):
-            self.pipeline.index_documents("")
+            pipeline.index()
 
-    @patch("minirag.adapters.load.LocalMarkdownSource.load")
-    def test_index_documents_no_docs_does_not_crash(self, mock_load):
+    @patch("minirag.adapters.source_local.LocalMarkdownSource.load")
+    def test_index_no_docs_does_not_crash(self, mock_load):
         mock_load.return_value = []
-        self.pipeline.index_documents(self.document_dir)
+        self.pipeline.index()
 
     def test_query_no_retrieved_chunks(self):
         answer = self.pipeline.query("something unrelated")
@@ -152,7 +155,7 @@ class TestRagPipeline(unittest.TestCase):
     def test_history_trimming(self):
         for i in range(10):
             self._write_doc(f"doc{i}.txt", f"content {i}")
-        self.pipeline.index_documents(self.document_dir)
+        self.pipeline.index()
 
         for i in range(5):
             self.pipeline.query(f"q{i}")

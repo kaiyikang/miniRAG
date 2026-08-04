@@ -1,5 +1,4 @@
 from typing import TypedDict, List, Optional, Any
-from typing import Literal
 
 END = "__end__"
 

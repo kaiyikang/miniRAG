@@ -9,6 +9,15 @@ from minirag.adapters.chunker import clean_markdown
 from minirag.domain.ports import Chunker, DocumentSource
 
 
+class LocalMarkdownSource(DocumentSource):
+    def __init__(self, doc_dir: str, chunker: Chunker):
+        self._doc_dir = doc_dir
+        self._chunker = chunker
+
+    def load(self) -> list[Chunk]:
+        return _chunk_documents(_load_documents(self._doc_dir), self._chunker)
+
+
 class MarkdownWithoutFrontmatterReader(BaseReader):
     def load_data(self, file_path, extra_info=None):
         docs = MarkdownReader(remove_images=False, remove_hyperlinks=False).load_data(
@@ -17,14 +26,6 @@ class MarkdownWithoutFrontmatterReader(BaseReader):
         return [
             Document(text=clean_markdown(d.text), metadata=d.metadata) for d in docs
         ]
-
-
-class LocalMarkdownSource(DocumentSource):
-    def __init__(self, chunker: Chunker):
-        self._chunker = chunker
-
-    def load(self, doc_dir: str) -> list[Chunk]:
-        return local_chunks(doc_dir, self._chunker)
 
 
 def _load_documents(path: str) -> list[Document]:
@@ -55,7 +56,3 @@ def _chunk_documents(docs: list[Document], chunker: Chunker) -> list[Chunk]:
                 )
             )
     return chunks
-
-
-def local_chunks(doc_dir: str, chunker: Chunker) -> list[Chunk]:
-    return _chunk_documents(_load_documents(doc_dir), chunker)

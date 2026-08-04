@@ -34,7 +34,7 @@ class RAGPipeline:
         query_transformer: QueryTransformer = IdentityTransformer(),
         event_queue: queue.Queue | None = None,
     ):
-        # source is only needed to index_documents(); query-only pipelines omit it.
+        # source is only needed to index(); query-only pipelines omit it.
         self._source = source
         self._embed = embed
         self._vstore = vector_store
@@ -53,21 +53,10 @@ class RAGPipeline:
         self._events.put(RAGEvent(event_id=event_id, step=step, data=data))
         get_client().update_current_span(metadata={step: data})
 
-    def index_documents(self, document_dirs: str | list[str]) -> None:
+    def index(self) -> None:
         if self._source is None:
             raise ValueError("No DocumentSource; construct with source=... to index.")
-        if isinstance(document_dirs, str):
-            document_dirs = [document_dirs]
-
-        for document_dir in document_dirs:
-            if not document_dir:
-                raise ValueError("Source Document dir can not be found!")
-
-            index_chunks(
-                self._source.load(document_dir),
-                self._embed,
-                self._vstore,
-            )
+        index_chunks(self._source.load(), self._embed, self._vstore)
 
     def clear_history(self):
         self._history = []

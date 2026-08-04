@@ -1,14 +1,17 @@
+import importlib.util
 import unittest
 from unittest.mock import MagicMock, patch
 
 from llama_index.core import Document
+
+HAS_SPACY = importlib.util.find_spec("spacy") is not None
 
 from minirag.adapters.chunker import (
     SlidingWindowChunker,
     SpacyChunker,
     ParagraphChunker,
 )
-from minirag.adapters.load import (
+from minirag.adapters.source_local import (
     MarkdownWithoutFrontmatterReader,
     _chunk_documents as chunk_documents,
     _load_documents as load_documents,
@@ -34,41 +37,33 @@ class TestSlidingWindowChunker(unittest.TestCase):
         self.assertEqual(result, [text])
 
     def test_sliding_window_produces_overlapping_chunks(self):
-        chunker = SlidingWindowChunker(chunk_size=10, overlap=3)
-        text = "abcdefghijklmnopqrstuvwxyz"
+        chunker = SlidingWindowChunker(chunk_size=3, overlap=1)
+        text = "a b c d e f g"  # 7 words
         result = chunker.chunk(text)
 
-        # chunk_size=10, overlap=3, step=7
-        # 0-10, 7-17, 14-24, 21-31(26)
-        self.assertEqual(len(result), 4)
-        self.assertEqual(result[0], "abcdefghij")
-        self.assertEqual(result[1], "hijklmnopq")
-        self.assertEqual(result[2], "opqrstuvwx")
-        self.assertEqual(result[3], "vwxyz")
+        # size=3 words, overlap=1, step=2: [0:3],[2:5],[4:7],[6:7]
+        self.assertEqual(result, ["a b c", "c d e", "e f g", "g"])
 
     def test_overlap_zero_produces_adjacent_chunks(self):
-        chunker = SlidingWindowChunker(chunk_size=5, overlap=0)
-        text = "abcdefghij"
+        chunker = SlidingWindowChunker(chunk_size=2, overlap=0)
+        text = "a b c d"
         result = chunker.chunk(text)
 
-        self.assertEqual(len(result), 2)
-        self.assertEqual(result[0], "abcde")
-        self.assertEqual(result[1], "fghij")
+        self.assertEqual(result, ["a b", "c d"])
 
     def test_invalid_params_raises(self):
         with self.assertRaises(ValueError):
             SlidingWindowChunker(chunk_size=5, overlap=10)
 
-    def test_chunk_boundary_does_not_split_a_word(self):
-        # "hello worl" | "d" is what a naive char-count cut would produce.
-        chunker = SlidingWindowChunker(chunk_size=10, overlap=0)
-        text = "hello world"
-        result = chunker.chunk(text)
+    def test_words_are_never_split(self):
+        # Word-based chunking groups whole words; it never cuts inside one.
+        chunker = SlidingWindowChunker(chunk_size=2, overlap=0)
+        result = chunker.chunk("hello world foo")
 
-        self.assertEqual(result, ["hello", " world"])
-        self.assertEqual("".join(result), text)
+        self.assertEqual(result, ["hello world", "foo"])
 
 
+@unittest.skipUnless(HAS_SPACY, "spacy not installed")
 class TestSpacyChunker(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -113,7 +108,7 @@ class TestParagraphChunker(unittest.TestCase):
 
 
 class TestMarkdownWithoutFrontmatterReader(unittest.TestCase):
-    @patch("minirag.adapters.load.MarkdownReader")
+    @patch("minirag.adapters.source_local.MarkdownReader")
     def test_strips_frontmatter(self, mock_reader_cls):
         from llama_index.core import Document
 
@@ -147,6 +142,7 @@ class TestSpacyChunkerImportError(unittest.TestCase):
                 SpacyChunker()
 
 
+@unittest.skipUnless(HAS_SPACY, "spacy not installed")
 class TestChunkerComparison(unittest.TestCase):
     """Compare sliding window vs sentence-based chunking on the same text."""
 
@@ -184,8 +180,8 @@ class TestChunkerComparison(unittest.TestCase):
 
 
 class TestLoadDocuments(unittest.TestCase):
-    @patch("minirag.adapters.load.SimpleDirectoryReader")
-    @patch("minirag.adapters.load.Path.exists", return_value=True)
+    @patch("minirag.adapters.source_local.SimpleDirectoryReader")
+    @patch("minirag.adapters.source_local.Path.exists", return_value=True)
     def test_load_documents_from_path(self, mock_exists, mock_reader_cls):
         mock_doc = MagicMock(spec=Document)
         mock_reader = MagicMock()

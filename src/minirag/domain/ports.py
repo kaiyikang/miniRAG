@@ -5,7 +5,8 @@ from typing import Any
 
 class DocumentSource(ABC):
     @abstractmethod
-    def load(self, doc_dir: str) -> list[Chunk]: ...
+    def load(self) -> list[Chunk]:
+        """Return all chunks from this source. Location is the adapter's own config."""
 
 
 class Chunker(ABC):

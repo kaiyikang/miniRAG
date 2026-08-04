@@ -4,7 +4,7 @@ from minirag.adapters.embedder import OpenRouterEmbeddingEngine
 from minirag.adapters.vector_store import ChromaVectorStore
 from minirag.adapters.llm import OpenRouterEngine
 from minirag.adapters.chunker import SlidingWindowChunker
-from minirag.adapters.load import LocalMarkdownSource
+from minirag.adapters.source_local import LocalMarkdownSource
 
 settings = get_settings()
 
@@ -18,10 +18,12 @@ pipeline = RAGPipeline(
         vector_store_path=settings.vector_store_path,
         collection_name=settings.collection_name,
     ),
-    source=LocalMarkdownSource(SlidingWindowChunker(chunk_size=200)),
+    source=LocalMarkdownSource(
+        settings.documents_dir, SlidingWindowChunker(chunk_size=200)
+    ),
     llm=OpenRouterEngine(
         model=settings.openrouter_model, api_key=settings.openrouter_api_key
     ),
 )
 
-pipeline.index_documents(settings.documents_dir)
+pipeline.index()

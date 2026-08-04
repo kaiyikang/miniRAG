@@ -1,10 +1,10 @@
 import chromadb
+import re
 
 from minirag.adapters.embedder import OpenRouterEmbeddingEngine
 from minirag.adapters.vector_store import ChromaVectorStore
 from minirag.agents.tool import SearchTools
-from minirag.serving.lakehouse import TicketContextTool
-from minirag.assistant import SupportAssistant
+from minirag.agents.ticket_tool import TicketContextTool
 from minirag.config import Settings
 
 CHROMA_PATH, COLLECTION = "data/chroma", "support"
@@ -14,6 +14,41 @@ QUESTIONS = [
     "What is the status of ticket T-102?",  # ticket
     "Ticket T-104 reported E301 - what happened and what does the guide recommend?",  # mixed
 ]
+
+TICKET_RE = re.compile(r"\bT-\d+\b")
+DOC_INTENT = (
+    "mean",
+    "how",
+    "what",
+    "recommend",
+    "fix",
+    "cause",
+    "guide",
+    "should",
+    "procedure",
+)
+
+
+class SupportAssistant:
+
+    def __init__(self, ticket_tool, search_tools):
+        self._tickets = ticket_tool
+        self._search = search_tools
+
+    def route(self, question: str) -> dict:
+
+        ids = TICKET_RE.findall(question)
+        wants_docs = any(w in question.lower() for w in DOC_INTENT)
+
+        label = "mixed" if (ids and wants_docs) else ("ticket" if ids else "docs")
+
+        result = {"route": label, "tickets": [], "docs": []}
+        if ids:
+            result["tickets"] = [self._tickets.get_context(t) for t in ids]
+        if label in ("docs", "mixed"):
+            result["docs"] = self._search.vector_search_dicts(question, top_k=3)
+
+        return result
 
 
 def build_assistant() -> SupportAssistant:
