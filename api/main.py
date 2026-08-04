@@ -35,7 +35,6 @@ async def query_stream(question: str):
             q.put(RAGEvent(event_id="unknown", step="error", data={"reason": str(e)}))
         finally:
             pipeline.clear_history()
-            # 如果有其他需要清的状态，在这里加
 
     threading.Thread(target=run, daemon=True).start()
 

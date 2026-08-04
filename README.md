@@ -56,8 +56,8 @@ Agent graph:
 
 | Path | Contents |
 |------|----------|
-| `src/minirag/` | RAG core: embedding, vector store, chunking, reranker, LLM engine, HyDE |
-| `src/minirag/rag.py` | Linear RAG pipeline |
+| `src/minirag/domain/` | RAG core, no vendor deps: entities, interfaces (ports), linear pipeline (`rag.py`), indexing |
+| `src/minirag/adapters/` | Port implementations: embedding, vector store, chunking, reranker, LLM engine, HyDE, document sources (local files, Delta lakehouse) |
 | `src/minirag/agents/graph/` | Agent graph: orchestrator, routing, shared state, verifier loop |
 | `src/minirag/agents/loop/` | Agent loop: autonomous retrieval agent with action budgets |
 | `src/minirag/agents/tool.py` | Search tools (vector / keyword) shared by both agent modes |
@@ -104,11 +104,12 @@ uv sync --extra local   # sentence-transformers + spaCy
 uv run pytest
 ```
 
-The core suite passes: API, RAG pipeline, agent routing, vector store, query transform,
-and config (45 tests). Four files cover the optional local backends (`test_embedding`,
-`test_reranker`, `test_document`, `test_evaluator`) and require the `local` extra. Without
-`uv sync --extra local`, they fail at import because sentence-transformers and spaCy are
-absent.
+The full suite is green: API, RAG pipeline, agent routing, vector store, query transform,
+config, and the document/loader layer (92 passed, 6 skipped). The sentence-based chunker
+tests skip automatically when spaCy is absent, so a run without it reports skips rather than
+errors. Three files exercise the sentence-transformers backends (`test_embedding`,
+`test_reranker`, `test_evaluator`) and need the `local` extra; install it with
+`uv sync --extra local`.
 
 ## Architecture decisions
 

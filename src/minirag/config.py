@@ -1,6 +1,6 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
 from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _DATA_DIR = _PROJECT_ROOT / "data"
@@ -24,8 +24,9 @@ class Settings(BaseSettings):
 
     vector_store_path: str = str(_DATA_DIR / "chroma")
     collection_name: str = "personal_notes_gemini_embedding_2_v1"
+    support_collection_name: str = "support_gemini_embedding_2_v1"
 
-    documents_dir: str = str(_DATA_DIR / "raw")
+    documents_dir: str = str(_DATA_DIR / "raw" / "blog")
 
     model_config = SettingsConfigDict(
         env_file=_PROJECT_ROOT / ".env",

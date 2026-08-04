@@ -89,7 +89,7 @@
 
     <!-- Production RAG pipeline -->
     <rect class="subgroup" x="40" y="352" width="1120" height="104" rx="6"/>
-    <text class="group-title" x="600" y="374">RAG Pipeline (production) — src/minirag/rag.py</text>
+    <text class="group-title" x="600" y="374">RAG Pipeline (production) — src/minirag/domain/rag.py</text>
 
     <rect class="box" x="60" y="386" width="340" height="58" rx="5"/>
     <text class="box-title" x="230" y="410">Query Transform</text>

@@ -1,13 +1,12 @@
-import chromadb
 import re
+
+import chromadb
 
 from minirag.adapters.embedder import OpenRouterEmbeddingEngine
 from minirag.adapters.vector_store import ChromaVectorStore
-from minirag.agents.tool import SearchTools
 from minirag.agents.ticket_tool import TicketContextTool
+from minirag.agents.tool import SearchTools
 from minirag.config import Settings
-
-CHROMA_PATH, COLLECTION = "data/chroma", "support"
 
 QUESTIONS = [
     "What does error code E104 mean?",  # docs
@@ -16,15 +15,15 @@ QUESTIONS = [
 ]
 
 TICKET_RE = re.compile(r"\bT-\d+\b")
+# Deliberately excludes generic words like "what"/"how"/"should" that appear in
+# pure ticket questions ("What is the status of ticket T-102?") and would
+# misroute them to "mixed". Keep only terms that signal genuine doc intent.
 DOC_INTENT = (
     "mean",
-    "how",
-    "what",
     "recommend",
     "fix",
     "cause",
     "guide",
-    "should",
     "procedure",
 )
 
@@ -36,7 +35,6 @@ class SupportAssistant:
         self._search = search_tools
 
     def route(self, question: str) -> dict:
-
         ids = TICKET_RE.findall(question)
         wants_docs = any(w in question.lower() for w in DOC_INTENT)
 
@@ -52,16 +50,19 @@ class SupportAssistant:
 
 
 def build_assistant() -> SupportAssistant:
-
     settings = Settings()
 
+    # Must match the embedder used by publish_index.py, or the query embeddings
+    # won't align with the indexed collection.
     embed = OpenRouterEmbeddingEngine(
-        model=settings.embedding_model,
+        model=settings.openrouter_embed_model,
         api_key=settings.openrouter_api_key,
     )
 
     vstore = ChromaVectorStore(
-        CHROMA_PATH, COLLECTION, client=chromadb.PersistentClient(CHROMA_PATH)
+        settings.vector_store_path,
+        settings.support_collection_name,
+        client=chromadb.PersistentClient(settings.vector_store_path),
     )
     return SupportAssistant(TicketContextTool(), SearchTools(embed, vstore))
 
