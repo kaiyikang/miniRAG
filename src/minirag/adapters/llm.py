@@ -1,7 +1,9 @@
 from typing import Any
-from minirag.domain.ports import InferenceEngine, InferenceError
+
 import requests
-from langfuse import get_client, observe
+
+from minirag.domain.ports import InferenceEngine, InferenceError
+from minirag.observability import get_client, observe
 
 
 class OpenRouterEngine(InferenceEngine):

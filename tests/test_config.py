@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pydantic_settings import SettingsConfigDict
+
 from minirag.config import Settings, get_settings
 
 
@@ -21,12 +22,15 @@ class TestSettings(unittest.TestCase):
             self.assertIsNone(s.openrouter_api_key)
             self.assertEqual(s.openrouter_model, "z-ai/glm-5.2")
             self.assertEqual(s.openrouter_embed_model, "google/gemini-embedding-2")
+            self.assertEqual(s.openrouter_rerank_model, "cohere/rerank-4-fast")
             self.assertEqual(s.embedding_model, "all-MiniLM-L6-v2")
             self.assertEqual(
                 s.collection_name, "personal_notes_gemini_embedding_2_v1"
             )
             project_root = Path(__file__).resolve().parent.parent
-            self.assertEqual(s.documents_dir, str(project_root / "data" / "raw"))
+            self.assertEqual(
+                s.documents_dir, str(project_root / "data" / "raw" / "blog")
+            )
             self.assertEqual(
                 s.vector_store_path, str(project_root / "data" / "chroma")
             )

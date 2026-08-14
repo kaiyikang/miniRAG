@@ -1,11 +1,13 @@
+import queue
+
+from minirag.adapters.embedder import OpenRouterEmbeddingEngine
+from minirag.adapters.evaluator import QA_DATASET_FILENAME, Evaluator
+from minirag.adapters.hyde import HyDETransformer
+from minirag.adapters.llm import OpenRouterEngine
+from minirag.adapters.reranker import OpenRouterReranker
+from minirag.adapters.vector_store import ChromaVectorStore
 from minirag.config import get_settings
 from minirag.domain.rag import RAGPipeline
-from minirag.adapters.embedder import OpenRouterEmbeddingEngine
-from minirag.adapters.vector_store import ChromaVectorStore
-from minirag.adapters.llm import OpenRouterEngine
-from minirag.adapters.evaluator import Evaluator, QA_DATASET_FILENAME
-from minirag.adapters.hyde import HyDETransformer
-import queue
 
 settings = get_settings()
 q = queue.Queue()
@@ -30,6 +32,10 @@ pipeline = RAGPipeline(
         collection_name=settings.collection_name,
     ),
     llm=llm,
+    reranker=OpenRouterReranker(
+        model=settings.openrouter_rerank_model,
+        api_key=settings.openrouter_api_key,
+    ),
     query_transformer=HyDETransformer(llm),
     event_queue=q,
 )
@@ -37,6 +43,7 @@ pipeline = RAGPipeline(
 params = {
     "model": settings.openrouter_model,
     "embed_model": settings.openrouter_embed_model,
+    "rerank_model": settings.openrouter_rerank_model,
     "chunk_size": CHUNK_SIZE,
     "top_k": TOP_K,
     "query_transformer": "HyDE",

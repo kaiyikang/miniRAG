@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     openrouter_model: str = "z-ai/glm-5.2"
 
     openrouter_embed_model: str = "google/gemini-embedding-2"
+    openrouter_rerank_model: str = "cohere/rerank-4-fast"
 
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_model_cache_dir: str = str(_PROJECT_ROOT / "temp")

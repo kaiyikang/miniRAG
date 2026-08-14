@@ -1,13 +1,14 @@
-from minirag.domain.models import SearchedChunk
-from minirag.domain.ports import InferenceEngine
+import json
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal
+
+from tenacity import retry, retry_if_exception_type, stop_after_attempt
+
 from minirag.adapters.llm import OpenRouterEngine
 from minirag.agents.tool import SearchTools
-
-from dataclasses import dataclass, field, asdict
-from typing import Any, Literal
-from tenacity import retry, stop_after_attempt, retry_if_exception_type
-from langfuse import get_client, observe
-import json
+from minirag.domain.models import SearchedChunk
+from minirag.domain.ports import InferenceEngine
+from minirag.observability import get_client, observe
 
 
 @dataclass
@@ -383,9 +384,10 @@ class RetrieverAgent:
 
 if __name__ == "__main__":
     import sys
-    from minirag.config import get_settings
+
     from minirag.adapters.embedder import OpenRouterEmbeddingEngine
     from minirag.adapters.vector_store import ChromaVectorStore
+    from minirag.config import get_settings
 
     # Dependency Injection
     settings = get_settings()

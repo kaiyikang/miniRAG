@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from minirag.domain.models import SearchedChunk, Chunk
 from typing import Any
+
+from minirag.domain.models import Chunk, SearchedChunk
 
 
 class DocumentSource(ABC):
@@ -74,7 +75,11 @@ class Reranker(ABC):
         query_embedding: list[float] | None,
         chunks: list[SearchedChunk],
     ) -> list[SearchedChunk]:
-        """"""
+        """Return candidate chunks ordered from most to least relevant."""
+
+
+class RerankerError(Exception):
+    """Raised when a remote reranking request or response is invalid."""
 
 
 class QueryTransformer(ABC):

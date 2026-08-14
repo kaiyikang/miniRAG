@@ -1,8 +1,9 @@
+from minirag.adapters.embedder import SentenceTransformerEngine
+from minirag.adapters.llm import OpenRouterEngine
+from minirag.adapters.reranker import OpenRouterReranker
+from minirag.adapters.vector_store import ChromaVectorStore
 from minirag.config import get_settings
 from minirag.domain.rag import RAGPipeline
-from minirag.adapters.embedder import SentenceTransformerEngine
-from minirag.adapters.vector_store import ChromaVectorStore
-from minirag.adapters.llm import OpenRouterEngine
 
 settings = get_settings()
 
@@ -18,6 +19,10 @@ pipeline = RAGPipeline(
     ),
     llm=OpenRouterEngine(
         model=settings.openrouter_model, api_key=settings.openrouter_api_key
+    ),
+    reranker=OpenRouterReranker(
+        model=settings.openrouter_rerank_model,
+        api_key=settings.openrouter_api_key,
     ),
 )
 

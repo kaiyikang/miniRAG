@@ -1,18 +1,21 @@
-import unittest
-from unittest.mock import Mock, patch
-import tempfile
-import shutil
-import chromadb
-from typing import Any
-from minirag.adapters.vector_store import ChromaVectorStore
-from minirag.domain.rag import RAGPipeline
-from minirag.adapters.embedder import EmbeddingEngine
-from minirag.adapters.llm import InferenceEngine
-from minirag.adapters.hyde import QueryTransformer
 import os
 import queue
+import shutil
+import tempfile
+import unittest
+from typing import Any
+from unittest.mock import patch
+
+import chromadb
+
 from minirag.adapters.chunker import SlidingWindowChunker
+from minirag.adapters.embedder import EmbeddingEngine
+from minirag.adapters.hyde import QueryTransformer
+from minirag.adapters.llm import InferenceEngine
 from minirag.adapters.source_local import LocalMarkdownSource
+from minirag.adapters.vector_store import ChromaVectorStore
+from minirag.domain.ports import Reranker
+from minirag.domain.rag import RAGPipeline
 
 
 class MockEmbedding(EmbeddingEngine):
@@ -26,6 +29,15 @@ class MockLLM(InferenceEngine):
 
     def generate(self, messages, **kwargs) -> dict[str, Any]:
         return {"content": self._answer}
+
+
+class MockReranker(Reranker):
+    def __init__(self):
+        self.calls = []
+
+    def rank(self, query_text, query_embedding, chunks):
+        self.calls.append((query_text, query_embedding, chunks))
+        return list(reversed(chunks))
 
 
 class TestRagPipeline(unittest.TestCase):
@@ -43,11 +55,13 @@ class TestRagPipeline(unittest.TestCase):
         self.document_dir = tempfile.mkdtemp()
 
         # RAG
+        self.reranker = MockReranker()
         self.pipeline = RAGPipeline(
             embed=MockEmbedding(),
             vector_store=self.store,
             source=LocalMarkdownSource(self.document_dir, SlidingWindowChunker()),
             llm=MockLLM(),
+            reranker=self.reranker,
         )
 
     def tearDown(self):
@@ -75,6 +89,13 @@ class TestRagPipeline(unittest.TestCase):
         )
         self.assertEqual(len(answer.sources), 1)
         self.assertEqual(answer.sources[0]["file_name"], "test.txt")
+        self.assertEqual(len(self.reranker.calls), 1)
+        self.assertEqual(self.reranker.calls[0][0], "What is RAG?")
+        self.assertIsNone(self.reranker.calls[0][1])
+
+    def test_exposes_configured_engines(self):
+        self.assertIsInstance(self.pipeline.get_embed(), MockEmbedding)
+        self.assertIsInstance(self.pipeline.get_llm(), MockLLM)
 
     def test_index_no_source_raises(self):
         pipeline = RAGPipeline(
@@ -95,6 +116,17 @@ class TestRagPipeline(unittest.TestCase):
         )
         self.assertEqual(answer.sources, [])
 
+    def test_reranks_all_candidates_before_applying_rerank_limit(self):
+        for i in range(3):
+            self._write_doc(f"doc{i}.txt", f"content {i}")
+        self.pipeline.index()
+
+        answer = self.pipeline.query("query", retrieve_k=3, rerank_k=2)
+
+        self.assertEqual(len(self.reranker.calls), 1)
+        self.assertEqual(len(self.reranker.calls[0][2]), 3)
+        self.assertEqual(len(answer.retrieved_chunks), 2)
+
     def test_query_inference_error_handling(self):
         class BadLLM(InferenceEngine):
             def generate(self, messages, *, reasoning=True, last_response=None):
@@ -106,6 +138,7 @@ class TestRagPipeline(unittest.TestCase):
             embed=MockEmbedding(),
             vector_store=self.store,
             llm=BadLLM(),
+            reranker=MockReranker(),
         )
         answer = pipeline.query("q")
         self.assertEqual(answer.content, "Error: failed to generate a response.")
@@ -120,6 +153,7 @@ class TestRagPipeline(unittest.TestCase):
             embed=MockEmbedding(),
             vector_store=self.store,
             llm=MockLLM(),
+            reranker=MockReranker(),
             query_transformer=UpperCaseTransformer(),
             event_queue=events,
         )
@@ -141,6 +175,7 @@ class TestRagPipeline(unittest.TestCase):
             embed=MockEmbedding(),
             vector_store=self.store,
             llm=MockLLM(),
+            reranker=MockReranker(),
             query_transformer=BrokenTransformer(),
             event_queue=events,
         )

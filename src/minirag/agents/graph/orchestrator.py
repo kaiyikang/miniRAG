@@ -1,12 +1,12 @@
-from functools import partial
 import json
+from functools import partial
 
-from minirag.agents.graph.state import create_initial_state, RagState, END
+from minirag.adapters.llm import OpenRouterEngine
 from minirag.agents.graph.route import route_next
+from minirag.agents.graph.state import END, RagState, create_initial_state
 from minirag.agents.tool import SearchTools
 from minirag.domain.ports import InferenceEngine
-from minirag.adapters.llm import OpenRouterEngine
-from langfuse import get_client, observe
+from minirag.observability import get_client, observe
 
 
 class Agent:
@@ -387,9 +387,9 @@ def compute_verified(state: dict) -> bool:
 
 
 if __name__ == "__main__":
-    from minirag.config import get_settings
     from minirag.adapters.embedder import OpenRouterEmbeddingEngine
     from minirag.adapters.vector_store import ChromaVectorStore
+    from minirag.config import get_settings
 
     settings = get_settings()
     embed = OpenRouterEmbeddingEngine(

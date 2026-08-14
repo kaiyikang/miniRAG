@@ -1,15 +1,17 @@
 import os
+
 import requests
+
 from minirag.domain.ports import EmbeddingEngine, EmbeddingError
 
 
 class SentenceTransformerEngine(EmbeddingEngine):
 
     def __init__(self, model: str, cache_dir: str, batch_size: int = 5):
-        from sentence_transformers import SentenceTransformer
-
         if not model or not cache_dir:
             raise ValueError("Embedding model name or cache dir can not be found!")
+
+        from sentence_transformers import SentenceTransformer
 
         os.makedirs(cache_dir, exist_ok=True)
         self._model = SentenceTransformer(model, cache_folder=cache_dir)

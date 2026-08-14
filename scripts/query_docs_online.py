@@ -1,11 +1,13 @@
-from minirag.config import get_settings
-from minirag.domain.rag import RAGPipeline
-from minirag.adapters.embedder import OpenRouterEmbeddingEngine
-from minirag.adapters.vector_store import ChromaVectorStore
-from minirag.adapters.llm import OpenRouterEngine
-from minirag.adapters.hyde import HyDETransformer
 import queue
 import threading
+
+from minirag.adapters.embedder import OpenRouterEmbeddingEngine
+from minirag.adapters.hyde import HyDETransformer
+from minirag.adapters.llm import OpenRouterEngine
+from minirag.adapters.reranker import OpenRouterReranker
+from minirag.adapters.vector_store import ChromaVectorStore
+from minirag.config import get_settings
+from minirag.domain.rag import RAGPipeline
 
 settings = get_settings()
 print(settings)
@@ -36,6 +38,10 @@ pipeline = RAGPipeline(
         collection_name=settings.collection_name,
     ),
     llm=llm,
+    reranker=OpenRouterReranker(
+        model=settings.openrouter_rerank_model,
+        api_key=settings.openrouter_api_key,
+    ),
     query_transformer=HyDETransformer(llm=llm),
     event_queue=q,
 )

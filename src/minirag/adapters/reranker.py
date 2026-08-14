@@ -1,7 +1,153 @@
-from minirag.domain.ports import Reranker
-from minirag.domain.models import SearchedChunk
 import math
 import os
+from dataclasses import dataclass
+
+import requests
+
+from minirag.domain.models import SearchedChunk
+from minirag.domain.ports import Reranker, RerankerError
+
+
+class OpenRouterReranker(Reranker):
+    BASE_URL = "https://openrouter.ai/api/v1/rerank"
+
+    @dataclass(frozen=True)
+    class _Result:
+        index: int
+        score: float
+
+    def __init__(self, model: str, api_key: str, timeout: float = 30.0):
+        if not model or not api_key:
+            raise ValueError("OpenRouter rerank model and API key are required")
+        if timeout <= 0:
+            raise ValueError("OpenRouter rerank timeout must be greater than zero")
+
+        self._model = model
+        self._api_key = api_key
+        self._timeout = timeout
+
+    def rank(
+        self,
+        query_text: str | None,
+        query_embedding: list[float] | None,
+        chunks: list[SearchedChunk],
+    ) -> list[SearchedChunk]:
+        query = self._validate_request(query_text, query_embedding)
+        if not chunks:
+            return []
+
+        payload = self._request_rerank(query, chunks)
+        results = self._parse_results(payload, expected_count=len(chunks))
+        return self._build_ranked_chunks(chunks, results)
+
+    def _validate_request(
+        self,
+        query_text: str | None,
+        query_embedding: list[float] | None,
+    ) -> str:
+        if query_embedding is not None:
+            raise ValueError("OpenRouterReranker doesn't need an embedding")
+        if not query_text:
+            raise ValueError("query text is required")
+        return query_text
+
+    def _request_rerank(
+        self,
+        query_text: str,
+        chunks: list[SearchedChunk],
+    ) -> object:
+        try:
+            response = requests.post(
+                self.BASE_URL,
+                headers={
+                    "Authorization": f"Bearer {self._api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self._model,
+                    "query": query_text,
+                    "documents": [chunk.document for chunk in chunks],
+                    # rank() returns the complete candidate set. RAGPipeline is
+                    # responsible for applying its rerank_k limit.
+                    "top_n": len(chunks),
+                },
+                timeout=self._timeout,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except requests.RequestException as exc:
+            raise RerankerError(f"OpenRouter rerank request failed: {exc}") from exc
+        return payload
+
+    def _parse_results(
+        self,
+        payload: object,
+        expected_count: int,
+    ) -> list[_Result]:
+        if not isinstance(payload, dict):
+            raise RerankerError("Unexpected OpenRouter rerank response: expected an object")
+        if "error" in payload:
+            raise RerankerError(f"OpenRouter rerank API error: {payload['error']}")
+
+        results = payload.get("results")
+        if not isinstance(results, list):
+            raise RerankerError(
+                "Unexpected OpenRouter rerank response: results must be a list"
+            )
+        if len(results) != expected_count:
+            raise RerankerError(
+                f"Rerank result count mismatch: expected {expected_count}, got {len(results)}"
+            )
+
+        parsed_results: list[OpenRouterReranker._Result] = []
+        seen_indexes: set[int] = set()
+        try:
+            for item in results:
+                index = item["index"]
+                if (
+                    isinstance(index, bool)
+                    or not isinstance(index, int)
+                    or not 0 <= index < expected_count
+                    or index in seen_indexes
+                ):
+                    raise ValueError(f"invalid or duplicate document index: {index!r}")
+                seen_indexes.add(index)
+
+                raw_score = item["relevance_score"]
+                if isinstance(raw_score, bool):
+                    raise TypeError("relevance score must be numeric")
+                score = float(raw_score)
+                if not math.isfinite(score):
+                    raise ValueError("relevance score must be finite")
+                parsed_results.append(
+                    self._Result(
+                        index=index,
+                        score=score,
+                    )
+                )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RerankerError(
+                f"Unexpected OpenRouter rerank result format: {exc}"
+            ) from exc
+
+        return parsed_results
+
+    def _build_ranked_chunks(
+        self,
+        chunks: list[SearchedChunk],
+        results: list[_Result],
+    ) -> list[SearchedChunk]:
+        ranked_chunks = [
+            SearchedChunk(
+                chunk_id=chunks[result.index].chunk_id,
+                document=chunks[result.index].document,
+                metadata=chunks[result.index].metadata,
+                embedding=chunks[result.index].embedding,
+                score=result.score,
+            )
+            for result in results
+        ]
+        return sorted(ranked_chunks, key=lambda chunk: chunk.score, reverse=True)
 
 
 class VectorReranker(Reranker):
@@ -15,7 +161,7 @@ class VectorReranker(Reranker):
         if query_text:
             raise ValueError("VectorReranker doesn't support text")
 
-        if not query_embedding or not all([chunk.embedding for chunk in chunks]):
+        if not query_embedding or not all(chunk.embedding for chunk in chunks):
             raise ValueError("The query or chunks must have embedding")
 
         return sorted(
@@ -51,10 +197,10 @@ class VectorReranker(Reranker):
 class CrossEncoderReranker(Reranker):
 
     def __init__(self, model: str, cache_dir: str | None = None):
-        from sentence_transformers import CrossEncoder
-
         if not model:
             raise ValueError("cross-encoder model name is required")
+
+        from sentence_transformers import CrossEncoder
 
         if cache_dir:
             os.makedirs(cache_dir, exist_ok=True)

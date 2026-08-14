@@ -1,53 +1,51 @@
+import sys
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from minirag.domain.ports import EmbeddingError
 from minirag.adapters.embedder import (
     OpenRouterEmbeddingEngine,
     SentenceTransformerEngine,
 )
+from minirag.domain.ports import EmbeddingError
 
 
 class TestSentenceTransformerEngine(unittest.TestCase):
-    @patch("sentence_transformers.SentenceTransformer")
-    def test_init_uses_model_and_cache_dir(self, mock_cls):
-        engine = SentenceTransformerEngine(
-            model="all-MiniLM-L6-v2", cache_dir="/tmp/cache"
-        )
+    def _make_engine(self, model="all-MiniLM-L6-v2", cache_dir="/tmp/cache"):
+        mock_cls = MagicMock()
+        fake_module = SimpleNamespace(SentenceTransformer=mock_cls)
+        with patch.dict(sys.modules, {"sentence_transformers": fake_module}):
+            engine = SentenceTransformerEngine(model=model, cache_dir=cache_dir)
+        return engine, mock_cls
+
+    def test_init_uses_model_and_cache_dir(self):
+        engine, mock_cls = self._make_engine()
         mock_cls.assert_called_once()
         self.assertEqual(engine._model, mock_cls.return_value)
 
-    @patch("sentence_transformers.SentenceTransformer")
-    def test_init_uses_custom_model_and_cache_dir(self, mock_cls):
-        engine = SentenceTransformerEngine(model="custom-model", cache_dir="/tmp/cache")
+    def test_init_uses_custom_model_and_cache_dir(self):
+        _, mock_cls = self._make_engine(model="custom-model")
         mock_cls.assert_called_once_with("custom-model", cache_folder="/tmp/cache")
 
-    @patch("sentence_transformers.SentenceTransformer")
-    def test_embed_returns_vectors(self, mock_cls):
+    def test_embed_returns_vectors(self):
+        engine, mock_cls = self._make_engine()
         mock_model = MagicMock()
         mock_model.encode.return_value = MagicMock(
             tolist=lambda: [[0.1, 0.2], [0.3, 0.4]]
         )
         mock_cls.return_value = mock_model
-
-        engine = SentenceTransformerEngine(
-            model="all-MiniLM-L6-v2", cache_dir="/tmp/cache"
-        )
+        engine._model = mock_model
         result = engine.embed(["hello", "world"])
 
         self.assertEqual(result, [[0.1, 0.2], [0.3, 0.4]])
         mock_model.encode.assert_called_once_with(["hello", "world"], batch_size=5)
 
-    @patch("sentence_transformers.SentenceTransformer")
-    def test_embed_empty_list_returns_empty_list(self, mock_cls):
-        engine = SentenceTransformerEngine(
-            model="all-MiniLM-L6-v2", cache_dir="/tmp/cache"
-        )
+    def test_embed_empty_list_returns_empty_list(self):
+        engine, _ = self._make_engine()
         result = engine.embed([])
         self.assertEqual(result, [])
 
-    @patch("sentence_transformers.SentenceTransformer")
-    def test_init_missing_model_or_cache_dir_raises(self, mock_cls):
+    def test_init_missing_model_or_cache_dir_raises(self):
         with self.assertRaises(ValueError):
             SentenceTransformerEngine(model="", cache_dir="/tmp/cache")
         with self.assertRaises(ValueError):

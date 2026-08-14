@@ -1,24 +1,25 @@
-from minirag.domain.index import index_chunks
-from minirag.domain.ports import (
-    IdentityTransformer,
-    QueryTransformer,
-    InferenceEngine,
-    InferenceError,
-    EmbeddingEngine,
-    VectorStore,
-    Reranker,
-    DocumentSource,
-)
-from minirag.domain.models import Answer, RAGEvent
-from typing import Any
-from langfuse import observe, get_client
 import queue
 import uuid
+from typing import Any, ClassVar
+
+from minirag.domain.index import index_chunks
+from minirag.domain.models import Answer, RAGEvent
+from minirag.domain.ports import (
+    DocumentSource,
+    EmbeddingEngine,
+    IdentityTransformer,
+    InferenceEngine,
+    InferenceError,
+    QueryTransformer,
+    Reranker,
+    VectorStore,
+)
+from minirag.observability import get_client, observe
 
 
 class RAGPipeline:
 
-    SYSTEM_MESSAGE = {
+    SYSTEM_MESSAGE: ClassVar[dict[str, str]] = {
         "role": "system",
         "content": "You are a retrieval-based assistant, please answer the question based on the provided context.",
     }
@@ -30,8 +31,9 @@ class RAGPipeline:
         embed: EmbeddingEngine,
         vector_store: VectorStore,
         llm: InferenceEngine,
+        reranker: Reranker | None = None,
         source: DocumentSource | None = None,
-        query_transformer: QueryTransformer = IdentityTransformer(),
+        query_transformer: QueryTransformer | None = None,
         event_queue: queue.Queue | None = None,
     ):
         # source is only needed to index(); query-only pipelines omit it.
@@ -39,7 +41,8 @@ class RAGPipeline:
         self._embed = embed
         self._vstore = vector_store
         self._llm = llm
-        self._query_transformer = query_transformer
+        self._reranker = reranker
+        self._query_transformer = query_transformer or IdentityTransformer()
         self._history: list[dict[str, Any]] = []  # or ChatHistory
         self._events = event_queue or queue.Queue()
 
@@ -94,9 +97,17 @@ class RAGPipeline:
         retrieved_chunks = self._vstore.search(query_embedding, top_k=retrieve_k)
         self._emit(query_id, "retrieve", chunk_count=len(retrieved_chunks))
 
-        # placeholder for rerank
-        ranked_chunks = retrieved_chunks[:rerank_k]
-        self._emit(query_id, "rerank(not yet)", chunk_count=len(ranked_chunks))
+        ranked_chunks = (
+            self._reranker.rank(
+                transformed_question,
+                None,
+                retrieved_chunks,
+            )[:rerank_k]
+            if self._reranker is not None
+            else retrieved_chunks[:rerank_k]
+        )
+
+        self._emit(query_id, "rerank", chunk_count=len(ranked_chunks))
 
         if not ranked_chunks:
             context = "No relevant context found."
