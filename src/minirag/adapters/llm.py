@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 from typing import Any
 
 import requests
@@ -11,10 +14,32 @@ class OpenRouterEngine(InferenceEngine):
 
     BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+    @dataclass(frozen=True)
+    class _Usage:
+        input_tokens: int | None
+        output_tokens: int | None
+
+        def as_langfuse(self) -> dict[str, int] | None:
+            usage = {
+                key: value
+                for key, value in {
+                    "input": self.input_tokens,
+                    "output": self.output_tokens,
+                }.items()
+                if value is not None
+            }
+            return usage or None
+
+    @dataclass(frozen=True)
+    class _Result:
+        message: dict[str, Any]
+        usage: OpenRouterEngine._Usage
+
     def __init__(
         self,
         model: str,
         api_key: str,
+        timeout: float = 60.0,
     ):
         self.model = model
         self.api_key = api_key
@@ -22,12 +47,19 @@ class OpenRouterEngine(InferenceEngine):
             raise RuntimeError(
                 "OpenRouter API key is required. Pass api_key=... or set OPENROUTER_API_KEY."
             )
+        if timeout <= 0:
+            raise ValueError("OpenRouter inference timeout must be greater than zero")
+        self._timeout = timeout
 
     def _prepare_messages(
         self, messages: str | list[dict[str, Any]], last_response: dict[str, Any] | None
     ) -> list[dict[str, Any]]:
         if isinstance(messages, str):
-            messages = [{"role": "user", "content": messages}]
+            prepared_messages = [{"role": "user", "content": messages}]
+        elif isinstance(messages, list):
+            prepared_messages = [dict(message) for message in messages]
+        else:
+            raise TypeError("messages must be a string or a list of message objects")
 
         if last_response is not None:
             assistant_msg: dict[str, Any] = {
@@ -37,9 +69,98 @@ class OpenRouterEngine(InferenceEngine):
             reasoning = last_response.get("reasoning_details")
             if reasoning is not None:
                 assistant_msg["reasoning_details"] = reasoning
-            messages = [assistant_msg, *messages]
+            prepared_messages = [assistant_msg, *prepared_messages]
 
-        return messages
+        return prepared_messages
+
+    def _build_payload(
+        self,
+        messages: list[dict[str, Any]],
+        reasoning: bool,
+        schema: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "reasoning": {"enabled": reasoning},
+        }
+        if schema is not None:
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "miniRAG",
+                    "strict": True,
+                    "schema": schema,
+                },
+            }
+        return payload
+
+    def _request_completion(self, payload: dict[str, Any]) -> object:
+        try:
+            response = requests.post(
+                self.BASE_URL,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=self._timeout,
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise InferenceError(f"LLM inference failed: {exc}") from exc
+
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise InferenceError("Unexpected response format: invalid JSON") from exc
+
+    def _parse_response(self, body: object) -> _Result:
+        if not isinstance(body, dict):
+            raise InferenceError("Unexpected response format: expected an object")
+        if "error" in body:
+            raise InferenceError(f"OpenRouter API error: {body['error']}")
+
+        try:
+            message = body["choices"][0]["message"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise InferenceError(
+                "Unexpected response format: missing assistant message"
+            ) from exc
+        if not isinstance(message, dict):
+            raise InferenceError("Unexpected response format: message must be an object")
+
+        return self._Result(
+            message=dict(message),
+            usage=self._parse_usage(body.get("usage")),
+        )
+
+    def _parse_usage(self, raw_usage: object) -> _Usage:
+        if not isinstance(raw_usage, dict):
+            return self._Usage(None, None)
+
+        def token_or_none(name: str) -> int | None:
+            value = raw_usage.get(name)
+            return value if type(value) is int and value >= 0 else None
+
+        return self._Usage(
+            input_tokens=token_or_none("prompt_tokens"),
+            output_tokens=token_or_none("completion_tokens"),
+        )
+
+    def _record_generation(
+        self,
+        messages: list[dict[str, Any]],
+        result: _Result,
+        span_name: str | None,
+    ) -> None:
+        get_client().update_current_generation(
+            name=span_name,
+            model=self.model,
+            input=messages,
+            output=result.message,
+            usage_details=result.usage.as_langfuse(),
+        )
 
     @observe(as_type="generation")
     def generate(
@@ -60,66 +181,8 @@ class OpenRouterEngine(InferenceEngine):
                 reasoning_details for multi-turn reasoning chains).
         """
         payload_messages = self._prepare_messages(messages, last_response)
-
-        response_format = (
-            {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "miniRAG",
-                    "strict": True,
-                    "schema": schema,
-                },
-            }
-            if schema
-            else None
-        )
-
-        payload = {
-            "model": self.model,
-            "messages": payload_messages,
-            "reasoning": {"enabled": reasoning},
-        }
-
-        if response_format:
-            payload["response_format"] = response_format
-
-        try:
-            response = requests.post(
-                self.BASE_URL,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            raise InferenceError(f"LLM inference failed: {exc}") from exc
-
-        try:
-            body = response.json()
-            message = body["choices"][0]["message"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise InferenceError(f"Unexpected response format: {exc}") from exc
-
-        # Normalise OpenRouter's usage keys (prompt_tokens/completion_tokens) to
-        # Langfuse's standard input/output so they match the model definition's
-        # price keys
-        raw_usage = body.get("usage") or {}
-        usage_details = {
-            k: v
-            for k, v in {
-                "input": raw_usage.get("prompt_tokens"),
-                "output": raw_usage.get("completion_tokens"),
-            }.items()
-            if v is not None
-        }
-
-        get_client().update_current_generation(
-            name=span_name,
-            model=self.model,
-            input=payload_messages,
-            output=message,
-            usage_details=usage_details or None,
-        )
-        return message
+        payload = self._build_payload(payload_messages, reasoning, schema)
+        body = self._request_completion(payload)
+        result = self._parse_response(body)
+        self._record_generation(payload_messages, result, span_name)
+        return result.message

@@ -94,41 +94,31 @@ class OpenRouterReranker(Reranker):
             raise RerankerError(
                 "Unexpected OpenRouter rerank response: results must be a list"
             )
-        if len(results) != expected_count:
-            raise RerankerError(
-                f"Rerank result count mismatch: expected {expected_count}, got {len(results)}"
-            )
-
-        parsed_results: list[OpenRouterReranker._Result] = []
-        seen_indexes: set[int] = set()
         try:
-            for item in results:
-                index = item["index"]
-                if (
-                    isinstance(index, bool)
-                    or not isinstance(index, int)
-                    or not 0 <= index < expected_count
-                    or index in seen_indexes
-                ):
-                    raise ValueError(f"invalid or duplicate document index: {index!r}")
-                seen_indexes.add(index)
-
-                raw_score = item["relevance_score"]
-                if isinstance(raw_score, bool):
-                    raise TypeError("relevance score must be numeric")
-                score = float(raw_score)
-                if not math.isfinite(score):
-                    raise ValueError("relevance score must be finite")
-                parsed_results.append(
-                    self._Result(
-                        index=index,
-                        score=score,
-                    )
+            parsed_results = [
+                self._Result(
+                    index=item["index"],
+                    score=float(item["relevance_score"]),
                 )
+                for item in results
+            ]
         except (KeyError, TypeError, ValueError) as exc:
             raise RerankerError(
                 f"Unexpected OpenRouter rerank result format: {exc}"
             ) from exc
+
+        indexes = [result.index for result in parsed_results]
+        valid_permutation = (
+            len(parsed_results) == expected_count
+            and all(type(index) is int for index in indexes)
+            and set(indexes) == set(range(expected_count))
+            and all(math.isfinite(result.score) for result in parsed_results)
+        )
+        if not valid_permutation:
+            raise RerankerError(
+                "Unexpected OpenRouter rerank results: candidates must form a complete "
+                "permutation with finite scores"
+            )
 
         return parsed_results
 

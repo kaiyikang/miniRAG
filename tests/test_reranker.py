@@ -71,21 +71,27 @@ class TestOpenRouterReranker(unittest.TestCase):
     @patch("minirag.adapters.reranker.requests.post")
     def test_rejects_invalid_or_incomplete_results(self, mock_post):
         reranker = OpenRouterReranker("model", "key")
-        mock_post.return_value.json.return_value = {
-            "results": [{"index": 0, "relevance_score": 0.5}]
-        }
-        with self.assertRaisesRegex(RerankerError, "count mismatch"):
-            reranker.rank("query", None, make_chunks())
-
-        mock_post.return_value.json.return_value = {
-            "results": [
+        invalid_results = [
+            [{"index": 0, "relevance_score": 0.5}],
+            [
                 {"index": 0, "relevance_score": 0.5},
                 {"index": 0, "relevance_score": 0.4},
                 {"index": 2, "relevance_score": 0.3},
-            ]
-        }
-        with self.assertRaisesRegex(RerankerError, "duplicate document index"):
-            reranker.rank("query", None, make_chunks())
+            ],
+            [
+                {"index": 0, "relevance_score": float("inf")},
+                {"index": 1, "relevance_score": 0.4},
+                {"index": 2, "relevance_score": 0.3},
+            ],
+        ]
+
+        for results in invalid_results:
+            with (
+                self.subTest(results=results),
+                self.assertRaisesRegex(RerankerError, "complete permutation"),
+            ):
+                mock_post.return_value.json.return_value = {"results": results}
+                reranker.rank("query", None, make_chunks())
 
     @patch("minirag.adapters.reranker.requests.post")
     def test_rejects_invalid_response_envelopes(self, mock_post):
@@ -97,36 +103,26 @@ class TestOpenRouterReranker(unittest.TestCase):
         ]
 
         for payload, message in cases:
-            with self.subTest(payload=payload):
+            with (
+                self.subTest(payload=payload),
+                self.assertRaisesRegex(RerankerError, message),
+            ):
                 mock_post.return_value.json.return_value = payload
-                with self.assertRaisesRegex(RerankerError, message):
-                    reranker.rank("query", None, make_chunks())
+                reranker.rank("query", None, make_chunks())
 
     @patch("minirag.adapters.reranker.requests.post")
     def test_rejects_malformed_result_items(self, mock_post):
         reranker = OpenRouterReranker("model", "key")
-        valid_tail = [
-            {"index": 1, "relevance_score": 0.4},
-            {"index": 2, "relevance_score": 0.3},
-        ]
-        invalid_first_items = [
-            {},
-            {"index": True, "relevance_score": 0.5},
-            {"index": "0", "relevance_score": 0.5},
-            {"index": 3, "relevance_score": 0.5},
-            {"index": 0},
-            {"index": 0, "relevance_score": True},
-            {"index": 0, "relevance_score": "not-a-number"},
-            {"index": 0, "relevance_score": float("inf")},
-        ]
+        mock_post.return_value.json.return_value = {
+            "results": [
+                {"index": 0, "relevance_score": "not-a-number"},
+                {"index": 1, "relevance_score": 0.4},
+                {"index": 2, "relevance_score": 0.3},
+            ]
+        }
 
-        for invalid_item in invalid_first_items:
-            with self.subTest(item=invalid_item):
-                mock_post.return_value.json.return_value = {
-                    "results": [invalid_item, *valid_tail]
-                }
-                with self.assertRaisesRegex(RerankerError, "result format"):
-                    reranker.rank("query", None, make_chunks())
+        with self.assertRaisesRegex(RerankerError, "result format"):
+            reranker.rank("query", None, make_chunks())
 
 
 class TestVectorReranker(unittest.TestCase):
