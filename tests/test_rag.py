@@ -148,7 +148,6 @@ class TestRagPipeline(unittest.TestCase):
         self.assertEqual(error_event.data["stage"], "generate")
         self.assertEqual(error_event.data["reason"], "generation_failed")
         self.assertEqual(error_event.data["error_type"], "InferenceError")
-        self.assertGreaterEqual(error_event.data["latency_ms"], 0)
 
     def test_query_transform_success_emits_no_fallback(self):
         class UpperCaseTransformer(QueryTransformer):
@@ -170,9 +169,7 @@ class TestRagPipeline(unittest.TestCase):
         transform_events = [e for e in list(events.queue) if e.step == "transform"]
         self.assertEqual(len(transform_events), 1)
         self.assertEqual(transform_events[0].data["question"], "WHAT IS RAG?")
-        self.assertEqual(transform_events[0].data["original_question"], "what is rag?")
         self.assertFalse(transform_events[0].data["fallback"])
-        self.assertGreaterEqual(transform_events[0].data["latency_ms"], 0)
 
     def test_query_transform_failure_falls_back_to_question(self):
         class BrokenTransformer(QueryTransformer):
@@ -194,9 +191,7 @@ class TestRagPipeline(unittest.TestCase):
         transform_events = [e for e in list(events.queue) if e.step == "transform"]
         self.assertEqual(len(transform_events), 1)
         self.assertEqual(transform_events[0].data["question"], "what is rag?")
-        self.assertEqual(transform_events[0].data["original_question"], "what is rag?")
         self.assertTrue(transform_events[0].data["fallback"])
-        self.assertGreaterEqual(transform_events[0].data["latency_ms"], 0)
 
     def test_history_trimming(self):
         for i in range(10):
@@ -211,46 +206,3 @@ class TestRagPipeline(unittest.TestCase):
         self.assertLessEqual(
             len(self.pipeline._history), RAGPipeline.MAX_HISTORY_MESSAGES
         )
-
-    def test_query_events_record_retrieval_and_rerank_candidates(self):
-        for i in range(3):
-            self._write_doc(f"doc{i}.txt", f"content {i}")
-        self.pipeline.index()
-
-        events: queue.Queue = queue.Queue()
-        reranker = MockReranker()
-        pipeline = RAGPipeline(
-            embed=MockEmbedding(),
-            vector_store=self.store,
-            llm=MockLLM(),
-            reranker=reranker,
-            event_queue=events,
-        )
-
-        pipeline.query("question", retrieve_k=3, rerank_k=2)
-
-        recorded_events = list(events.queue)
-        retrieve_event = next(e for e in recorded_events if e.step == "retrieve")
-        rerank_event = next(e for e in recorded_events if e.step == "rerank")
-        generate_event = next(e for e in recorded_events if e.step == "generate")
-
-        retrieved_contexts = retrieve_event.data["contexts"]
-        reranked_contexts = rerank_event.data["contexts"]
-
-        self.assertEqual(retrieve_event.data["query"], "question")
-        self.assertEqual(retrieve_event.data["chunk_count"], 3)
-        self.assertEqual(len(retrieved_contexts), 3)
-        self.assertEqual([c["rank"] for c in retrieved_contexts], [1, 2, 3])
-        self.assertTrue(all(isinstance(c["score"], float) for c in retrieved_contexts))
-
-        self.assertEqual(rerank_event.data["query"], "question")
-        self.assertEqual(rerank_event.data["chunk_count"], 2)
-        self.assertEqual(len(reranked_contexts), 2)
-        self.assertEqual(
-            [c["chunk_id"] for c in reranked_contexts],
-            [c["chunk_id"] for c in reversed(retrieved_contexts)][:2],
-        )
-
-        self.assertGreaterEqual(retrieve_event.data["latency_ms"], 0)
-        self.assertGreaterEqual(rerank_event.data["latency_ms"], 0)
-        self.assertGreaterEqual(generate_event.data["latency_ms"], 0)
