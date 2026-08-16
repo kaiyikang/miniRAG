@@ -1,9 +1,10 @@
 import queue
 import uuid
+from time import perf_counter
 from typing import Any, ClassVar
 
 from minirag.domain.index import index_chunks
-from minirag.domain.models import Answer, RAGEvent
+from minirag.domain.models import Answer, RAGEvent, SearchedChunk
 from minirag.domain.ports import (
     DocumentSource,
     EmbeddingEngine,
@@ -18,7 +19,6 @@ from minirag.observability import get_client, observe
 
 
 class RAGPipeline:
-
     SYSTEM_MESSAGE: ClassVar[dict[str, str]] = {
         "role": "system",
         "content": "You are a retrieval-based assistant, please answer the question based on the provided context.",
@@ -72,49 +72,74 @@ class RAGPipeline:
         self._emit(query_id, "start", question=question)
 
         # transformation
+        transform_started = perf_counter()
         transformed_question = self._query_transformer.transform(question)
-        if transformed_question == "":
+
+        fallback = transformed_question == ""
+        if fallback:
             transformed_question = question
-            self._emit(
-                query_id,
-                "transform",
-                question=transformed_question,
-                fallback=True,
-            )
-        else:
-            self._emit(
-                query_id,
-                "transform",
-                question=transformed_question,
-                fallback=False,
-            )
 
-        # Retrieval
-        ## Dense retrieval
+        self._emit(
+            query_id,
+            "transform",
+            question=transformed_question,
+            original_question=question,
+            fallback=fallback,
+            latency_ms=_elapsed_ms(transform_started),
+        )
+
+        # Dense Retrieval
+        ## Embedding query
+        embed_started = perf_counter()
         query_embedding = self._embed.embed([transformed_question])[0]
-        self._emit(query_id, "embed")
+        self._emit(
+            query_id,
+            "embed",
+            latency_ms=_elapsed_ms(embed_started),
+        )
 
-        retrieved_chunks = self._vstore.search(query_embedding, top_k=retrieve_k)
-        self._emit(query_id, "retrieve", chunk_count=len(retrieved_chunks))
+        ## Retrieval
+        retrieve_started = perf_counter()
+        retrieved_chunks = self._vstore.search(
+            query_embedding,
+            top_k=retrieve_k,
+        )
 
-        ranked_chunks = (
-            self._reranker.rank(
+        self._emit(
+            query_id,
+            "retrieve",
+            query=transformed_question,
+            chunk_count=len(retrieved_chunks),
+            contexts=_snapshot_chunks(retrieved_chunks),
+            latency_ms=_elapsed_ms(retrieve_started),
+        )
+
+        ## Rerank
+        rerank_started = perf_counter()
+        if self._reranker is not None:
+            ranked_chunks = self._reranker.rank(
                 transformed_question,
                 None,
                 retrieved_chunks,
             )[:rerank_k]
-            if self._reranker is not None
-            else retrieved_chunks[:rerank_k]
+        else:
+            ranked_chunks = retrieved_chunks[:rerank_k]
+
+        self._emit(
+            query_id,
+            "rerank",
+            query=transformed_question,
+            chunk_count=len(ranked_chunks),
+            contexts=_snapshot_chunks(ranked_chunks),
+            latency_ms=_elapsed_ms(rerank_started),
         )
 
-        self._emit(query_id, "rerank", chunk_count=len(ranked_chunks))
-
+        # Augmented
         if not ranked_chunks:
             context = "No relevant context found."
         else:
-            context = "\n".join([chunk.document for chunk in ranked_chunks])
+            context = "\n".join(chunk.document for chunk in ranked_chunks)
 
-        # Augmented
         messages = [
             self.SYSTEM_MESSAGE,
             *self._history,
@@ -125,19 +150,35 @@ class RAGPipeline:
         ]
 
         # Generation
+        generate_started = perf_counter()
+
         try:
             content = self._llm.generate(
-                messages=messages, span_name="answer_generation"
+                messages=messages,
+                span_name="answer_generation",
             )["content"]
-        except (KeyError, TypeError, InferenceError):
-            self._emit(query_id, "error", reason="generation_failed")
+        except (KeyError, TypeError, InferenceError) as exc:
+            self._emit(
+                query_id,
+                "error",
+                stage="generate",
+                reason="generation_failed",
+                error_type=type(exc).__name__,
+                latency_ms=_elapsed_ms(generate_started),
+            )
             return Answer(
                 content="Error: failed to generate a response.",
                 sources=[],
                 retrieved_chunk_ids=[],
                 retrieved_chunks=[],
             )
-        self._emit(query_id, "generate", response_preview=content[:200])
+
+        self._emit(
+            query_id,
+            "generate",
+            response_preview=content[:200],
+            latency_ms=_elapsed_ms(generate_started),
+        )
 
         # Handle History
         self._history.extend(
@@ -165,3 +206,18 @@ class RAGPipeline:
             sources=answer.sources,
         )
         return answer
+
+
+def _elapsed_ms(started_at: float) -> float:
+    return (perf_counter() - started_at) * 1000
+
+
+def _snapshot_chunks(chunks: list[SearchedChunk]) -> list[dict[str, Any]]:
+    return [
+        {
+            "chunk_id": chunk.chunk_id,
+            "score": float(chunk.score),
+            "rank": rank,
+        }
+        for rank, chunk in enumerate(chunks, start=1)
+    ]
