@@ -1,4 +1,4 @@
-from typing import TypedDict, List, Optional, Any
+from typing import TypedDict
 
 END = "__end__"
 
@@ -6,33 +6,34 @@ END = "__end__"
 class VerificationState(TypedDict):
     verification_attempts: int
     max_verification_attempts: int
-    verification_result: Optional[bool]
-    verification_reason: Optional[str]
+    verification_result: bool | None
+    verification_reason: str | None
 
 
 class RagState(VerificationState):
     # Input from user
     original_query: str
-    current_query: Optional[str]
+    current_query: str | None
 
     # Intermediate fields
-    classification_reason: Optional[str]
-    task_type: Optional[str]
-    plan: Optional[str]
-    docs: List[dict]
-    answer: Optional[str]
+    classification_reason: str | None
+    task_type: str | None
+    plan: str | None
+    docs: list[dict]
+    answer: str | None
+    citations: list[str]
 
     # Process Control for Orchestrator
     step: int  # already done
     max_steps: int
     retrieval_attempts: int
     max_retrieval_attempts: int
-    exit_reason: Optional[str]
+    exit_reason: str | None
     verified: bool
 
     # Debug
-    trace: List[dict]
-    query_history: List[str]
+    trace: list[dict]
+    query_history: list[str]
 
 
 def create_initial_state(query="explain what is the multi agent RAG") -> RagState:
@@ -44,6 +45,7 @@ def create_initial_state(query="explain what is the multi agent RAG") -> RagStat
         "plan": None,
         "docs": [],
         "answer": None,
+        "citations": [],
         "verification_attempts": 0,
         "max_verification_attempts": 3,
         "verification_result": None,
