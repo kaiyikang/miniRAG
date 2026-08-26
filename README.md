@@ -1,5 +1,7 @@
 # miniRAG
 
+![cover](assets/mini-rag-cover.png)
+
 A mini RAG system implemented without a RAG framework, so each step in the pipeline stays
 visible and replaceable. The same components (embedding, vector store, chunking, reranker,
 LLM engine) back three modes of retrieval and answering:
@@ -54,17 +56,17 @@ Agent graph:
 
 ## Layout
 
-| Path | Contents |
-|------|----------|
-| `src/minirag/domain/` | RAG core, no vendor deps: entities, interfaces (ports), linear pipeline (`rag.py`), indexing |
-| `src/minirag/adapters/` | Port implementations: embedding, vector store, chunking, reranker, LLM engine, HyDE, document sources (local files, Delta lakehouse) |
-| `src/minirag/agents/graph/` | Agent graph: orchestrator, routing, shared state, verifier loop |
-| `src/minirag/agents/loop/` | Agent loop: autonomous retrieval agent with action budgets |
-| `src/minirag/agents/tool.py` | Search tools (vector / keyword) shared by both agent modes |
-| `src/minirag/spark/` | Bronze/silver/gold Delta lakehouse pipeline |
-| `api/` | FastAPI SSE streaming endpoint |
-| `eval/`, `evaluate.py` | QA dataset and retrieval/answer evaluation |
-| `tests/` | Unit tests (status below) |
+| Path                         | Contents                                                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/minirag/domain/`        | RAG core, no vendor deps: entities, interfaces (ports), linear pipeline (`rag.py`), indexing                                         |
+| `src/minirag/adapters/`      | Port implementations: embedding, vector store, chunking, reranker, LLM engine, HyDE, document sources (local files, Delta lakehouse) |
+| `src/minirag/agents/graph/`  | Agent graph: orchestrator, routing, shared state, verifier loop                                                                      |
+| `src/minirag/agents/loop/`   | Agent loop: autonomous retrieval agent with action budgets                                                                           |
+| `src/minirag/agents/tool.py` | Search tools (vector / keyword) shared by both agent modes                                                                           |
+| `src/minirag/spark/`         | Bronze/silver/gold Delta lakehouse pipeline                                                                                          |
+| `api/`                       | FastAPI SSE streaming endpoint                                                                                                       |
+| `eval/`, `evaluate.py`       | QA dataset and retrieval/answer evaluation                                                                                           |
+| `tests/`                     | Unit tests (status below)                                                                                                            |
 
 ## Running
 
